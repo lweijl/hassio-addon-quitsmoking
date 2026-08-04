@@ -1,0 +1,359 @@
+:root {
+  --color-success: #34C759;
+  --color-warning: #FF9500;
+  --color-danger: #FF3B30;
+  --color-bonus: #AF52DE;
+  --color-background: #1C1C1E;
+  --color-surface: #2C2C2E;
+  --color-text: #FFFFFF;
+  --color-secondary-text: #8E8E93;
+  --color-accent: #64D2FF;
+  --color-surface-elevated: #3A3A3C;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --transition: 0.2s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Card component */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  transition: transform var(--transition);
+}
+
+.card:hover {
+  transform: translateY(-1px);
+}
+
+/* Button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  font-weight: 600;
+  transition: all var(--transition);
+  touch-action: manipulation;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: #000;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #8ADEFF;
+  transform: scale(1.02);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-success {
+  background: var(--color-success);
+  color: #000;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #4CD964;
+}
+
+.btn-bonus {
+  background: var(--color-bonus);
+  color: #FFF;
+}
+
+.btn-bonus:hover:not(:disabled) {
+  background: #C77DEB;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: #FFF;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #FF6961;
+}
+
+.btn-secondary {
+  background: var(--color-surface-elevated);
+  color: var(--color-text);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #48484A;
+}
+
+/* Shake animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Progress bar */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--color-surface-elevated);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1s linear;
+}
+
+/* Tab navigation */
+.tab-nav {
+  display: flex;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 4px;
+  gap: 4px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-secondary-text);
+  background: transparent;
+  transition: all var(--transition);
+}
+
+.tab-btn.active {
+  background: var(--color-accent);
+  color: #000;
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+}
+
+/* Responsive layout */
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 24px;
+  }
+}
+
+/* Fade transition */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+/* Countdown timer */
+.countdown {
+  font-size: 3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--color-accent);
+  letter-spacing: -1px;
+}
+
+@media (min-width: 768px) {
+  .countdown {
+    font-size: 4rem;
+  }
+}
+
+/* Stat grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 480px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--color-secondary-text);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Dots */
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-surface-elevated);
+  transition: background var(--transition);
+}
+
+.dot.filled {
+  background: var(--color-accent);
+}
+
+.dot.bonus {
+  background: var(--color-bonus);
+}
+
+/* Input styles */
+input[type="number"],
+input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-surface-elevated);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 16px;
+  font-family: inherit;
+  transition: border-color var(--transition);
+}
+
+input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+/* Table */
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.schedule-table th,
+.schedule-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-surface-elevated);
+}
+
+.schedule-table th {
+  color: var(--color-secondary-text);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.schedule-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Range selector */
+.range-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.range-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-surface-elevated);
+  color: var(--color-secondary-text);
+  transition: all var(--transition);
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.range-btn.active {
+  background: var(--color-accent);
+  color: #000;
+}
+
+.range-btn:hover:not(.active) {
+  background: #48484A;
+  color: var(--color-text);
+}
