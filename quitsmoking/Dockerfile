@@ -26,8 +26,6 @@ WORKDIR /app
 COPY backend/ /app/backend/
 COPY --from=frontend-builder /build/frontend/dist /app/frontend/dist
 
-# Copy run script
-COPY run.sh /
-RUN chmod +x /run.sh
-
-CMD ["/run.sh"]
+# Set up s6 service
+COPY run.sh /etc/services.d/quitsmoking/run
+RUN chmod +x /etc/services.d/quitsmoking/run
