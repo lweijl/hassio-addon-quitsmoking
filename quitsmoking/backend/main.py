@@ -33,6 +33,23 @@ entry_store = EntryStore()
 config_store = ConfigStore()
 
 
+@app.get("/api/health")
+async def health():
+    """Health check and debug info."""
+    from .persistence import DATA_DIR
+    return {
+        "status": "ok",
+        "data_dir": str(DATA_DIR),
+        "data_dir_exists": DATA_DIR.exists(),
+        "entries_file": str(entry_store.path),
+        "entries_file_exists": entry_store.path.exists(),
+        "config_file": str(config_store.path),
+        "config_file_exists": config_store.path.exists(),
+        "ingress_path": INGRESS_PATH,
+        "cwd": os.getcwd(),
+    }
+
+
 def _get_engine() -> ScheduleEngine:
     config = config_store.load()
     return ScheduleEngine(config)
