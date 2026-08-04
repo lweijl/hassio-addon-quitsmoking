@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { getConfig, updateConfig } from './api.js'
+  import { getConfig, updateConfig, importEntries, importConfig } from './api.js'
 
   let config = $state(null)
   let loading = $state(true)
@@ -11,6 +11,11 @@
   let bonusPerWeek = $state(1)
   let costPerCigarette = $state(0.565)
   let baseline = $state(20)
+
+  // Import state
+  let importError = $state(null)
+  let importSuccess = $state(null)
+  let importing = $state(false)
 
   onMount(async () => {
     await fetchConfig()
@@ -47,6 +52,40 @@
       error = e.message
     } finally {
       saving = false
+    }
+  }
+
+  async function handleFileImport(event, type) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    importing = true
+    importError = null
+    importSuccess = null
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      let result
+      if (type === 'entries') {
+        result = await importEntries(data)
+        importSuccess = `✅ Imported ${result.imported} entries (${result.skipped_duplicates} duplicates skipped). Total: ${result.total}`
+      } else {
+        result = await importConfig(data)
+        importSuccess = `✅ Config imported (start: ${result.start_date}, ${result.weeks} weeks)`
+        await fetchConfig()
+      }
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        importError = 'Invalid JSON file'
+      } else {
+        importError = e.message
+      }
+    } finally {
+      importing = false
+      // Reset file input
+      event.target.value = ''
     }
   }
 </script>
@@ -152,6 +191,55 @@
         {saving ? 'Saving...' : '💾 Save Settings'}
       </button>
     </div>
+
+    <!-- Import Data -->
+    <div class="card">
+      <h2 class="section-title">Import Data</h2>
+      <p class="import-description">
+        Import your smoking history and config from the macOS app or a previous backup.
+        Accepts both the Swift app format and the addon's native format.
+      </p>
+
+      <div class="import-grid">
+        <div class="import-group">
+          <label for="import-entries" class="import-label">📋 Import Entries</label>
+          <p class="import-hint">entries.json from macOS app or backup</p>
+          <input
+            id="import-entries"
+            type="file"
+            accept=".json"
+            onchange={(e) => handleFileImport(e, 'entries')}
+            disabled={importing}
+            aria-label="Import cigarette entries from JSON file"
+          />
+        </div>
+
+        <div class="import-group">
+          <label for="import-config" class="import-label">⚙️ Import Config</label>
+          <p class="import-hint">config.json from macOS app or backup</p>
+          <input
+            id="import-config"
+            type="file"
+            accept=".json"
+            onchange={(e) => handleFileImport(e, 'config')}
+            disabled={importing}
+            aria-label="Import schedule configuration from JSON file"
+          />
+        </div>
+      </div>
+
+      {#if importing}
+        <p class="import-status">Importing...</p>
+      {/if}
+
+      {#if importError}
+        <p class="error-text">⚠️ {importError}</p>
+      {/if}
+
+      {#if importSuccess}
+        <p class="success-text fade-in">{importSuccess}</p>
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -239,6 +327,56 @@
   .success-text {
     color: var(--color-success);
     font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .import-description {
+    font-size: 13px;
+    color: var(--color-secondary-text);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .import-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  @media (min-width: 480px) {
+    .import-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .import-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .import-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .import-hint {
+    font-size: 12px;
+    color: var(--color-secondary-text);
+    margin-bottom: 6px;
+  }
+
+  .import-group input[type="file"] {
+    font-size: 13px;
+    color: var(--color-text);
+  }
+
+  .import-status {
+    font-size: 14px;
+    color: var(--color-accent);
     margin-bottom: 8px;
   }
 </style>

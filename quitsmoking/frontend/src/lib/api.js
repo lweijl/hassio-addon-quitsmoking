@@ -87,3 +87,25 @@ export function updateConfig(config) {
     body: JSON.stringify(config)
   })
 }
+
+/**
+ * Import entries from Swift app or backup
+ * @param {object|array} data - Entries in Swift format ({version, entries}) or addon format (array)
+ */
+export function importEntries(data) {
+  return request('/import/entries', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  })
+}
+
+/**
+ * Import config from Swift app or backup
+ * @param {object} data - Config in Swift format (camelCase) or addon format (snake_case)
+ */
+export function importConfig(data) {
+  return request('/import/config', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  })
+}
