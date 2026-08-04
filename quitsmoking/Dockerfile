@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.20
 
 ## Build frontend with native Node image
 FROM node:20-alpine AS frontend-builder
