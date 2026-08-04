@@ -12,6 +12,11 @@ RUN cd frontend && npm run build
 ## Runtime image
 FROM ${BUILD_FROM}
 
+LABEL \
+    io.hass.version="1.0.4" \
+    io.hass.type="addon" \
+    io.hass.arch="aarch64|amd64|armv7"
+
 SHELL ["/bin/ash", "-o", "pipefail", "-c"]
 
 # Install Python

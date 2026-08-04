@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from zoneinfo import ZoneInfo
@@ -26,15 +25,6 @@ from .persistence import ConfigStore, EntryStore
 INGRESS_PATH = os.environ.get("INGRESS_PATH", "")
 
 app = FastAPI(title="QuitSmoking", root_path=INGRESS_PATH)
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Stores (singleton-like)
 entry_store = EntryStore()

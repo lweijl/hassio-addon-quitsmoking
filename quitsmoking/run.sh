@@ -1,4 +1,4 @@
-#!/usr/bin/with-contenv bashio
+#!/command/with-contenv bashio
 set -e
 
 # Read ingress entry from Supervisor
@@ -12,8 +12,8 @@ export NOTIFY_SERVICE=$(bashio::config 'notify_service')
 export DATA_DIR="/config/quitsmoking"
 mkdir -p "$DATA_DIR"
 
-echo "Starting Quit Smoking add-on..."
-echo "Ingress path: ${INGRESS_PATH}"
-echo "Notify service: ${NOTIFY_SERVICE}"
+bashio::log.info "Starting Quit Smoking add-on..."
+bashio::log.info "Ingress path: ${INGRESS_PATH}"
+bashio::log.info "Notify service: ${NOTIFY_SERVICE}"
 
 exec python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8099

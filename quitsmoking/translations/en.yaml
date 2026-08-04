@@ -1,0 +1,6 @@
+configuration:
+  notify_service:
+    name: Notification Service
+    description: >-
+      The notification service to use for alerts (e.g., notify.notify,
+      notify.mobile_app_phone). Can include or omit the 'notify.' prefix.

@@ -10,7 +10,9 @@ import aiohttp
 logger = logging.getLogger(__name__)
 
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
-NOTIFY_SERVICE = os.environ.get("NOTIFY_SERVICE", "notify")
+NOTIFY_SERVICE_RAW = os.environ.get("NOTIFY_SERVICE", "notify")
+# Strip 'notify.' prefix if present (user may configure 'notify.notify' or just 'notify')
+NOTIFY_SERVICE = NOTIFY_SERVICE_RAW.removeprefix("notify.")
 SUPERVISOR_API = "http://supervisor/core/api"
 
 
