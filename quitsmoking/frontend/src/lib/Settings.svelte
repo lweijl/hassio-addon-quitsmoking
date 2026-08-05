@@ -28,7 +28,7 @@
       config = await getConfig()
       bonusPerWeek = config.bonus_per_week ?? 1
       costPerCigarette = config.cost_per_cigarette ?? 0.565
-      baseline = config.baseline ?? 20
+      baseline = config.baseline_daily_count ?? 20
     } catch (e) {
       error = e.message
     } finally {
@@ -44,7 +44,7 @@
       await updateConfig({
         bonus_per_week: bonusPerWeek,
         cost_per_cigarette: costPerCigarette,
-        baseline: baseline
+        baseline_daily_count: baseline
       })
       successMessage = 'Settings saved!'
       setTimeout(() => { successMessage = null }, 3000)
@@ -102,7 +102,7 @@
     </div>
   {:else}
     <!-- Schedule Table -->
-    {#if config?.schedule}
+    {#if config?.weekly_schedules}
       <div class="card">
         <h2 class="section-title">Tapering Schedule</h2>
         <div class="table-wrapper">
@@ -115,7 +115,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each config.schedule as week, i}
+              {#each config.weekly_schedules as week, i}
                 <tr>
                   <td>Week {i + 1}</td>
                   <td>
@@ -123,7 +123,7 @@
                       {week.mode}
                     </span>
                   </td>
-                  <td>{week.value ?? '—'}</td>
+                  <td>{week.mode === 'daily' ? `${week.allowance}/day` : week.mode === 'interval' ? `${week.interval_hours}h` : '—'}</td>
                 </tr>
               {/each}
             </tbody>

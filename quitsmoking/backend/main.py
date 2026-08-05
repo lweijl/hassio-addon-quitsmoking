@@ -197,8 +197,58 @@ async def undo_last():
     return _build_status(engine, entries)
 
 
-@app.get("/api/history", response_model=list[HistoryEntry])
+@app.get("/api/history")
 async def get_history():
+    """Return daily aggregated history for the chart.
+
+    Returns: {"days": [{"date": "2026-06-15", "count": 8, "bonus_count": 0, "allowance": 8}, ...]}
+    """
+    engine = _get_engine()
+    entries = entry_store.load()
+
+    if not entries:
+        return {"days": []}
+
+    # Aggregate entries by date
+    from collections import defaultdict
+    daily: dict[str, dict] = defaultdict(lambda: {"count": 0, "bonus_count": 0})
+
+    for e in entries:
+        ts = e.timestamp.astimezone(TZ) if e.timestamp.tzinfo else e.timestamp.replace(tzinfo=TZ)
+        day_key = ts.date().isoformat()
+        daily[day_key]["count"] += 1
+        if e.is_bonus:
+            daily[day_key]["bonus_count"] += 1
+
+    # Build day-by-day from start to today
+    config = config_store.load()
+    start = config.start_date
+    today = _now().date()
+    days_list = []
+
+    current = start
+    while current <= today:
+        day_key = current.isoformat()
+        day_data = daily.get(day_key, {"count": 0, "bonus_count": 0})
+
+        # Calculate allowance for this day
+        day_dt = datetime.combine(current, datetime.min.time(), tzinfo=TZ)
+        allowance = engine.daily_allowance(day_dt)
+
+        days_list.append({
+            "date": day_key,
+            "count": day_data["count"],
+            "bonus_count": day_data["bonus_count"],
+            "allowance": allowance,
+        })
+        current += timedelta(days=1)
+
+    return {"days": days_list}
+
+
+@app.get("/api/history/entries", response_model=list[HistoryEntry])
+async def get_history_entries():
+    """Return raw entry list (for debugging/export)."""
     engine = _get_engine()
     entries = entry_store.load()
     result = []
