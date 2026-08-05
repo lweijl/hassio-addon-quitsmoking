@@ -40,6 +40,29 @@ INGRESS_PATH = os.environ.get("INGRESS_PATH", "")
 _scheduler_task: Optional[asyncio.Task] = None
 _last_notification_check: Optional[datetime] = None
 
+# Track which notifications have been sent today/this cycle to avoid duplicates
+# Keys: notification tag + date (e.g., "daily_reminder:2026-08-05")
+_sent_notifications: set[str] = set()
+
+
+def _sent_key(tag: str, now: datetime) -> str:
+    """Create a dedup key for a notification."""
+    return f"{tag}:{now.date().isoformat()}"
+
+
+def _was_sent(tag: str, now: datetime) -> bool:
+    """Check if this notification was already sent today."""
+    return _sent_key(tag, now) in _sent_notifications
+
+
+def _mark_sent(tag: str, now: datetime) -> None:
+    """Mark a notification as sent for today."""
+    _sent_notifications.add(_sent_key(tag, now))
+    # Clean up old keys (anything not from today)
+    today = now.date().isoformat()
+    stale = {k for k in _sent_notifications if not k.endswith(today)}
+    _sent_notifications.difference_update(stale)
+
 
 async def _notification_scheduler():
     """Background task that checks every 60 seconds if notifications should be sent."""
@@ -54,16 +77,15 @@ async def _notification_scheduler():
 
 
 async def _check_and_send_notifications():
-    """Core notification logic — checks time conditions and sends."""
+    """Core notification logic — checks conditions and sends (with dedup)."""
     now = datetime.now(TZ)
-    current_minute = now.replace(second=0, microsecond=0)
 
     engine = _get_engine()
     entries = entry_store.load()
     schedule = engine.current_week_schedule(now)
 
-    # 9:00 AM daily reminder
-    if now.hour == 9 and now.minute == 0:
+    # ─── 09:00 Good morning / daily reminder ───
+    if now.hour >= 9 and not _was_sent("daily_reminder", now):
         allowance = engine.daily_allowance(now)
         if schedule.mode == ScheduleMode.QUIT:
             await send_notification(
@@ -79,10 +101,10 @@ async def _check_and_send_notifications():
                 actions=[Actions.open_app(), Actions.open_progress()],
                 tag="daily_reminder",
             )
+        _mark_sent("daily_reminder", now)
 
         # Monday weekly summary
-        if now.weekday() == 0:
-            # Calculate last week's stats
+        if now.weekday() == 0 and not _was_sent("weekly_summary", now):
             last_week_start = engine.current_week_start(now) - timedelta(weeks=1)
             last_week_end = engine.current_week_start(now)
             last_week_entries = [
@@ -100,16 +122,21 @@ async def _check_and_send_notifications():
                 actions=[Actions.open_progress()],
                 tag="weekly_summary",
             )
+            _mark_sent("weekly_summary", now)
 
-    # Mode-specific notifications
+    # ─── Mode-specific notifications ───
     if schedule.mode == ScheduleMode.DAILY:
         # Send reminders at scheduled smoking times
         times = engine.smoking_schedule_times(now)
-        for h, m in times:
-            if now.hour == h and now.minute == m:
-                today_entries = _entries_today(entries, now)
-                smoked = len([e for e in today_entries if not e.is_bonus])
-                remaining = max(0, engine.daily_allowance(now) - smoked)
+        today_entries = _entries_today(entries, now)
+        smoked = len([e for e in today_entries if not e.is_bonus])
+        remaining = max(0, engine.daily_allowance(now) - smoked)
+
+        for idx, (h, m) in enumerate(times):
+            slot_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            slot_key = f"smoke_time_{idx}"
+            # Trigger if we've passed the slot time and haven't sent yet
+            if now >= slot_time and not _was_sent(slot_key, now):
                 if remaining > 0:
                     await send_notification(
                         "⏰ Scheduled smoke time",
@@ -121,7 +148,8 @@ async def _check_and_send_notifications():
                         ],
                         tag="smoke_time",
                     )
-                break
+                _mark_sent(slot_key, now)
+                break  # Only send for one slot at a time
 
     elif schedule.mode == ScheduleMode.INTERVAL:
         # Send alert when interval has elapsed
@@ -130,8 +158,12 @@ async def _check_and_send_notifications():
             last_entry = non_bonus[-1].timestamp.astimezone(TZ)
             interval_hours = schedule.interval_hours
             next_allowed = last_entry + timedelta(hours=interval_hours)
-            # Check if we just reached the next allowed time (within this minute)
-            if current_minute == next_allowed.replace(second=0, microsecond=0):
+
+            # Use a key tied to the specific last_entry so it resets after each log
+            interval_key = f"interval_elapsed:{last_entry.isoformat()}"
+
+            # Trigger if interval has elapsed and we haven't notified for this entry yet
+            if now >= next_allowed and not _was_sent(interval_key, now):
                 await send_notification(
                     "✅ Interval elapsed",
                     f"Your {interval_hours:.1f}h interval is up. You may smoke now.",
@@ -142,9 +174,10 @@ async def _check_and_send_notifications():
                     ],
                     tag="interval_elapsed",
                 )
+                _mark_sent(interval_key, now)
 
-    # 21:00 Evening check-in (daily summary)
-    if now.hour == 21 and now.minute == 0:
+    # ─── 21:00 Evening check-in ───
+    if now.hour >= 21 and not _was_sent("evening_checkin", now):
         today_entries = _entries_today(entries, now)
         smoked = len([e for e in today_entries if not e.is_bonus])
         allowance = engine.daily_allowance(now)
@@ -167,7 +200,7 @@ async def _check_and_send_notifications():
                 actions=[Actions.open_progress()],
                 tag="evening_checkin",
             )
-        elif under_budget == 0:
+        else:
             await send_notification(
                 "🌙 Day complete",
                 f"Used your full allowance of {allowance} today. "
@@ -175,6 +208,7 @@ async def _check_and_send_notifications():
                 actions=[Actions.open_app()],
                 tag="evening_checkin",
             )
+        _mark_sent("evening_checkin", now)
 
 
 @asynccontextmanager

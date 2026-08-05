@@ -1,12 +1,27 @@
 # Changelog
 
-## 1.2.3
+## 1.2.4
 
 ### New Features
-- **Configurable notification targets**: Choose which devices receive notifications instead of broadcasting to all. Configure a list of specific services (e.g., `notify.mobile_app_iphone`) in the addon settings.
+- **Configurable notification targets**: Choose which devices receive notifications instead of broadcasting to all. Configure a list of specific services (e.g., `notify.mobile_app_iphone_van_papa`) in the addon settings.
 - **Test notification button**: In Settings, tap "🔔 Send Test Notification" to verify your devices receive it.
 - **Log for past date**: New "📅 Log for a past date" button on the dashboard lets you retroactively log cigarettes (including bonus) for yesterday or earlier.
 - **Debug endpoint**: `GET /api/debug` shows raw computed values for troubleshooting.
+
+### Bug Fixes
+- **Countdown after logging (interval mode)**: Timestamp was not timezone-normalized, causing "Available now" to persist after logging.
+- **Countdown after logging (daily mode)**: Now scans forward to find the next *future* scheduled slot instead of only checking one.
+- **Backfill blocked on partial days**: Backfill now allows adding entries to days that already have some (was incorrectly skipping them).
+
+### Improvements
+- **Robust notification scheduler**: Notifications no longer require hitting the exact minute. Uses `>=` checks with dedup tracking — if the addon restarts or lags, it catches up on the next 60s tick.
+- **Interval notification resets per log**: The "interval elapsed" notification is tied to the specific last entry, so it resets automatically after each new cigarette.
+- **Daily slot dedup**: Each scheduled slot is tracked individually to avoid duplicate reminders.
+
+### Configuration
+- New `notify_services` option: list of HA notify services to target.
+- Legacy `notify_service` (single) still works as fallback.
+- If neither is set, falls back to `notify.notify` (broadcast to all).
 
 ### Bug Fixes
 - **Countdown after logging (interval mode)**: Timestamp was not timezone-normalized, causing "Available now" to persist after logging.
