@@ -109,3 +109,28 @@ export function importConfig(data) {
     body: JSON.stringify(data)
   })
 }
+
+/**
+ * Get catch-up info for missed days and partial yesterday
+ */
+export function getCatchUp() {
+  return request('/catchup')
+}
+
+/**
+ * Backfill missed days with cigarette counts
+ * @param {Array<{date: string, count: number}>} days - Array of day entries to backfill
+ */
+export function backfillDays(days) {
+  return request('/catchup/backfill', {
+    method: 'POST',
+    body: JSON.stringify({ days })
+  })
+}
+
+/**
+ * Get progress data (charts, milestones, projections)
+ */
+export function getProgress() {
+  return request('/progress')
+}

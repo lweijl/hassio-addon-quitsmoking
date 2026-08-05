@@ -12,6 +12,13 @@
   let costPerCigarette = $state(0.565)
   let baseline = $state(20)
 
+  // Schedule editor state
+  let editableSchedule = $state([])
+  let scheduleChanged = $state(false)
+  let scheduleSaving = $state(false)
+  let scheduleError = $state(null)
+  let scheduleSuccess = $state(null)
+
   // Import state
   let importError = $state(null)
   let importSuccess = $state(null)
@@ -29,10 +36,88 @@
       bonusPerWeek = config.bonus_per_week ?? 1
       costPerCigarette = config.cost_per_cigarette ?? 0.565
       baseline = config.baseline_daily_count ?? 20
+      editableSchedule = (config.weekly_schedules ?? []).map(w => ({ ...w }))
+      scheduleChanged = false
     } catch (e) {
       error = e.message
     } finally {
       loading = false
+    }
+  }
+
+  function getCurrentWeekIndex() {
+    if (!config?.start_date) return -1
+    const start = new Date(config.start_date)
+    const now = new Date()
+    const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24))
+    const idx = Math.floor(diffDays / 7)
+    return Math.max(0, Math.min(idx, (config.weekly_schedules?.length ?? 1) - 1))
+  }
+
+  function isFutureWeek(index) {
+    return index > getCurrentWeekIndex()
+  }
+
+  function isCurrentWeek(index) {
+    return index === getCurrentWeekIndex()
+  }
+
+  function updateScheduleField(index, field, value) {
+    editableSchedule[index] = { ...editableSchedule[index], [field]: value }
+    scheduleChanged = true
+  }
+
+  function updateScheduleMode(index, newMode) {
+    const week = { ...editableSchedule[index], mode: newMode }
+    if (newMode === 'daily') {
+      week.allowance = week.allowance ?? 5
+      delete week.interval_hours
+    } else if (newMode === 'interval') {
+      week.interval_hours = week.interval_hours ?? 2
+      delete week.allowance
+    } else if (newMode === 'quit') {
+      delete week.allowance
+      delete week.interval_hours
+    }
+    editableSchedule[index] = week
+    scheduleChanged = true
+  }
+
+  function addWeek() {
+    const lastWeek = editableSchedule[editableSchedule.length - 1]
+    let newWeek = { mode: 'daily', allowance: 1 }
+    if (lastWeek?.mode === 'quit') {
+      newWeek = { mode: 'quit' }
+    }
+    editableSchedule = [...editableSchedule, newWeek]
+    scheduleChanged = true
+  }
+
+  function deleteWeek(index) {
+    editableSchedule = editableSchedule.filter((_, i) => i !== index)
+    scheduleChanged = true
+  }
+
+  async function saveSchedule() {
+    scheduleSaving = true
+    scheduleError = null
+    scheduleSuccess = null
+    try {
+      await updateConfig({
+        ...config,
+        bonus_per_week: bonusPerWeek,
+        cost_per_cigarette: costPerCigarette,
+        baseline_daily_count: baseline,
+        weekly_schedules: editableSchedule
+      })
+      scheduleSuccess = 'Schedule saved!'
+      scheduleChanged = false
+      config = { ...config, weekly_schedules: editableSchedule.map(w => ({ ...w })) }
+      setTimeout(() => { scheduleSuccess = null }, 3000)
+    } catch (e) {
+      scheduleError = e.message
+    } finally {
+      scheduleSaving = false
     }
   }
 
@@ -101,34 +186,131 @@
       <button class="btn btn-secondary" onclick={fetchConfig} style="margin-top: 12px;">Retry</button>
     </div>
   {:else}
-    <!-- Schedule Table -->
-    {#if config?.weekly_schedules}
+    <!-- Schedule Table (Editable) -->
+    {#if editableSchedule.length > 0}
       <div class="card">
         <h2 class="section-title">Tapering Schedule</h2>
         <div class="table-wrapper">
           <table class="schedule-table">
             <thead>
               <tr>
+                <th></th>
                 <th>Week</th>
                 <th>Mode</th>
                 <th>Value</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {#each config.weekly_schedules as week, i}
-                <tr>
+              {#each editableSchedule as week, i}
+                {@const past = !isFutureWeek(i) && !isCurrentWeek(i)}
+                {@const current = isCurrentWeek(i)}
+                {@const future = isFutureWeek(i)}
+                <tr class:past-row={past} class:current-row={current}>
+                  <td class="indicator-cell">
+                    {#if past}
+                      <span title="Locked (past week)" aria-label="Past week, locked">🔒</span>
+                    {:else if current}
+                      <span title="Current week" aria-label="Current week">▶️</span>
+                    {/if}
+                  </td>
                   <td>Week {i + 1}</td>
                   <td>
-                    <span class="mode-pill" class:interval={week.mode === 'interval'} class:daily={week.mode === 'daily'} class:quit={week.mode === 'quit'}>
-                      {week.mode}
-                    </span>
+                    {#if future}
+                      <select
+                        value={week.mode}
+                        onchange={(e) => updateScheduleMode(i, e.target.value)}
+                        aria-label="Mode for week {i + 1}"
+                        class="mode-select"
+                      >
+                        <option value="daily">daily</option>
+                        <option value="interval">interval</option>
+                        <option value="quit">quit</option>
+                      </select>
+                    {:else}
+                      <span class="mode-pill" class:interval={week.mode === 'interval'} class:daily={week.mode === 'daily'} class:quit={week.mode === 'quit'}>
+                        {week.mode}
+                      </span>
+                    {/if}
                   </td>
-                  <td>{week.mode === 'daily' ? `${week.allowance}/day` : week.mode === 'interval' ? `${week.interval_hours}h` : '—'}</td>
+                  <td>
+                    {#if future && week.mode === 'daily'}
+                      <input
+                        type="number"
+                        min="0"
+                        max="50"
+                        value={week.allowance ?? 0}
+                        onchange={(e) => updateScheduleField(i, 'allowance', parseInt(e.target.value) || 0)}
+                        class="schedule-input"
+                        aria-label="Daily allowance for week {i + 1}"
+                      />
+                      <span class="input-suffix">/day</span>
+                    {:else if future && week.mode === 'interval'}
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="24"
+                        step="0.5"
+                        value={week.interval_hours ?? 2}
+                        onchange={(e) => updateScheduleField(i, 'interval_hours', parseFloat(e.target.value) || 2)}
+                        class="schedule-input"
+                        aria-label="Interval hours for week {i + 1}"
+                      />
+                      <span class="input-suffix">hours</span>
+                    {:else if !future && week.mode === 'daily'}
+                      {week.allowance}/day
+                    {:else if !future && week.mode === 'interval'}
+                      {week.interval_hours}h
+                    {:else}
+                      —
+                    {/if}
+                  </td>
+                  <td class="action-cell">
+                    {#if future}
+                      <button
+                        class="delete-btn"
+                        onclick={() => deleteWeek(i)}
+                        aria-label="Delete week {i + 1}"
+                        title="Delete week"
+                      >
+                        ✕
+                      </button>
+                    {/if}
+                  </td>
                 </tr>
               {/each}
             </tbody>
           </table>
         </div>
+
+        <div class="schedule-actions">
+          <button
+            class="btn btn-secondary add-week-btn"
+            onclick={addWeek}
+            aria-label="Add a new week to the schedule"
+          >
+            ➕ Add Week
+          </button>
+
+          {#if scheduleChanged}
+            <button
+              class="btn btn-primary"
+              onclick={saveSchedule}
+              disabled={scheduleSaving}
+              aria-label="Save schedule changes"
+            >
+              {scheduleSaving ? 'Saving...' : '💾 Save Schedule'}
+            </button>
+          {/if}
+        </div>
+
+        {#if scheduleError}
+          <p class="error-text">⚠️ {scheduleError}</p>
+        {/if}
+
+        {#if scheduleSuccess}
+          <p class="success-text fade-in">✅ {scheduleSuccess}</p>
+        {/if}
       </div>
     {/if}
 
@@ -378,5 +560,95 @@
     font-size: 14px;
     color: var(--color-accent);
     margin-bottom: 8px;
+  }
+
+  /* Schedule editor styles */
+  .past-row {
+    opacity: 0.5;
+  }
+
+  .current-row {
+    background: rgba(100, 210, 255, 0.05);
+  }
+
+  .indicator-cell {
+    width: 30px;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .action-cell {
+    width: 40px;
+    text-align: center;
+  }
+
+  .mode-select {
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-surface-elevated);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .mode-select:focus {
+    border-color: var(--color-accent);
+    outline: none;
+  }
+
+  .schedule-input {
+    width: 60px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-surface-elevated);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    font-family: inherit;
+    text-align: center;
+  }
+
+  .schedule-input:focus {
+    border-color: var(--color-accent);
+    outline: none;
+  }
+
+  .input-suffix {
+    font-size: 12px;
+    color: var(--color-secondary-text);
+    margin-left: 4px;
+  }
+
+  .delete-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 59, 48, 0.15);
+    color: var(--color-danger);
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+  }
+
+  .delete-btn:hover {
+    background: rgba(255, 59, 48, 0.3);
+  }
+
+  .schedule-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .add-week-btn {
+    font-size: 14px;
+    padding: 10px 16px;
+    min-height: 40px;
   }
 </style>

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
-from datetime import date, datetime, timedelta
+from collections import defaultdict
+from contextlib import asynccontextmanager
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 from uuid import uuid4
 
@@ -13,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from zoneinfo import ZoneInfo
 
-from .engine import ScheduleEngine, ScheduleMode, TZ, WeekSchedule
+from .engine import ScheduleEngine, ScheduleConfig, ScheduleMode, TZ, WeekSchedule
 from .models import (
     CigaretteEntry,
     ConfigUpdate,
@@ -24,9 +28,119 @@ from .models import (
 from .notifications import send_notification
 from .persistence import ConfigStore, EntryStore
 
+logger = logging.getLogger(__name__)
+
 INGRESS_PATH = os.environ.get("INGRESS_PATH", "")
 
-app = FastAPI(title="QuitSmoking", root_path=INGRESS_PATH)
+
+# ---------------------------------------------------------------------------
+# Background scheduler
+# ---------------------------------------------------------------------------
+
+_scheduler_task: Optional[asyncio.Task] = None
+_last_notification_check: Optional[datetime] = None
+
+
+async def _notification_scheduler():
+    """Background task that checks every 60 seconds if notifications should be sent."""
+    global _last_notification_check
+    while True:
+        try:
+            await _check_and_send_notifications()
+            _last_notification_check = datetime.now(TZ)
+        except Exception as exc:
+            logger.error("Notification scheduler error: %s", exc)
+        await asyncio.sleep(60)
+
+
+async def _check_and_send_notifications():
+    """Core notification logic — checks time conditions and sends."""
+    now = datetime.now(TZ)
+    current_minute = now.replace(second=0, microsecond=0)
+
+    engine = _get_engine()
+    entries = entry_store.load()
+    schedule = engine.current_week_schedule(now)
+
+    # 9:00 AM daily reminder
+    if now.hour == 9 and now.minute == 0:
+        allowance = engine.daily_allowance(now)
+        if schedule.mode == ScheduleMode.QUIT:
+            await send_notification(
+                "🎯 Stay strong!",
+                "You're in quit mode. No cigarettes today — you've got this!",
+            )
+        else:
+            await send_notification(
+                "☀️ Good morning!",
+                f"Today's allowance: {allowance} cigarettes. Make them count!",
+            )
+
+        # Monday weekly summary
+        if now.weekday() == 0:
+            # Calculate last week's stats
+            last_week_start = engine.current_week_start(now) - timedelta(weeks=1)
+            last_week_end = engine.current_week_start(now)
+            last_week_entries = [
+                e for e in entries
+                if last_week_start <= e.timestamp.astimezone(TZ) < last_week_end
+            ]
+            smoked_last_week = len(last_week_entries)
+            total_smoked = len(entries)
+            avoided = engine.cigarettes_avoided(total_smoked, now)
+            saved = engine.money_saved(total_smoked, now)
+            await send_notification(
+                "📊 Weekly Summary",
+                f"Last week: {smoked_last_week} smoked. "
+                f"Total avoided: {avoided}. Total saved: €{saved:.2f}.",
+            )
+
+    # Mode-specific notifications
+    if schedule.mode == ScheduleMode.DAILY:
+        # Send reminders at scheduled smoking times
+        times = engine.smoking_schedule_times(now)
+        for h, m in times:
+            if now.hour == h and now.minute == m:
+                today_entries = _entries_today(entries, now)
+                smoked = len([e for e in today_entries if not e.is_bonus])
+                remaining = max(0, engine.daily_allowance(now) - smoked)
+                if remaining > 0:
+                    await send_notification(
+                        "⏰ Scheduled smoke time",
+                        f"You may have a cigarette now. {remaining} remaining today.",
+                    )
+                break
+
+    elif schedule.mode == ScheduleMode.INTERVAL:
+        # Send alert when interval has elapsed
+        non_bonus = [e for e in entries if not e.is_bonus]
+        if non_bonus:
+            last_entry = non_bonus[-1].timestamp.astimezone(TZ)
+            interval_hours = schedule.interval_hours
+            next_allowed = last_entry + timedelta(hours=interval_hours)
+            # Check if we just reached the next allowed time (within this minute)
+            if current_minute == next_allowed.replace(second=0, microsecond=0):
+                await send_notification(
+                    "✅ Interval elapsed",
+                    f"Your {interval_hours:.1f}h interval is up. You may smoke now.",
+                )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start background scheduler on app startup."""
+    global _scheduler_task
+    _scheduler_task = asyncio.create_task(_notification_scheduler())
+    yield
+    if _scheduler_task:
+        _scheduler_task.cancel()
+        try:
+            await _scheduler_task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(title="QuitSmoking", root_path=INGRESS_PATH, lifespan=lifespan)
 
 # Stores (singleton-like)
 entry_store = EntryStore()
@@ -210,7 +324,6 @@ async def get_history():
         return {"days": []}
 
     # Aggregate entries by date
-    from collections import defaultdict
     daily: dict[str, dict] = defaultdict(lambda: {"count": 0, "bonus_count": 0})
 
     for e in entries:
@@ -416,7 +529,6 @@ async def import_config(request: Request):
             parts = body["smokingWindowEnd"].split(":")
             window_end = int(parts[0]) * 60 + int(parts[1])
 
-        from .engine import ScheduleConfig
         config = ScheduleConfig(
             start_date=date.fromisoformat(body["startDate"]),
             weekly_schedules=schedules,
@@ -428,7 +540,6 @@ async def import_config(request: Request):
         )
     elif "start_date" in body:
         # Already in HA addon format
-        from .engine import ScheduleConfig
         schedules = []
         for s in body.get("weekly_schedules", []):
             mode = s["mode"]
@@ -456,6 +567,410 @@ async def import_config(request: Request):
         "status": "ok",
         "start_date": config.start_date.isoformat(),
         "weeks": len(config.weekly_schedules),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Catch-Up Manager
+# ---------------------------------------------------------------------------
+
+class BackfillDay(BaseModel):
+    date: str
+    count: int
+    is_bonus: bool = False
+
+
+class BackfillRequest(BaseModel):
+    days: list[BackfillDay]
+
+
+@app.get("/api/catchup")
+async def get_catchup():
+    """Find missed days and partially-logged yesterday."""
+    engine = _get_engine()
+    config = config_store.load()
+    entries = entry_store.load()
+    now = _now()
+    yesterday = now.date() - timedelta(days=1)
+
+    # Build a map of entries per day
+    daily_counts: dict[date, int] = defaultdict(int)
+    for e in entries:
+        ts = e.timestamp.astimezone(TZ) if e.timestamp.tzinfo else e.timestamp.replace(tzinfo=TZ)
+        daily_counts[ts.date()] += 1
+
+    # Find missed days (0 entries) from start_date to yesterday
+    missed_days = []
+    current = config.start_date
+    while current <= yesterday:
+        if daily_counts.get(current, 0) == 0:
+            day_dt = datetime.combine(current, time.min, tzinfo=TZ)
+            allowance = engine.daily_allowance(day_dt)
+            if allowance > 0:  # Only include days where smoking was expected
+                missed_days.append({
+                    "date": current.isoformat(),
+                    "allowance": allowance,
+                })
+        current += timedelta(days=1)
+
+    # Check if yesterday was partially logged
+    partial_yesterday = None
+    yesterday_count = daily_counts.get(yesterday, 0)
+    if yesterday_count > 0:
+        yesterday_dt = datetime.combine(yesterday, time.min, tzinfo=TZ)
+        yesterday_allowance = engine.daily_allowance(yesterday_dt)
+        if yesterday_count < yesterday_allowance:
+            partial_yesterday = {
+                "date": yesterday.isoformat(),
+                "logged": yesterday_count,
+                "allowance": yesterday_allowance,
+            }
+
+    return {
+        "missed_days": missed_days,
+        "partial_yesterday": partial_yesterday,
+    }
+
+
+@app.post("/api/catchup/backfill")
+async def backfill_days(req: BackfillRequest):
+    """Backfill entries for missed days with evenly-spaced timestamps."""
+    config = config_store.load()
+    entries = entry_store.load()
+
+    # Build set of dates that already have entries
+    existing_dates: set[date] = set()
+    for e in entries:
+        ts = e.timestamp.astimezone(TZ) if e.timestamp.tzinfo else e.timestamp.replace(tzinfo=TZ)
+        existing_dates.add(ts.date())
+
+    window_start_minutes = config.smoking_window_start_minutes
+    window_end_minutes = config.smoking_window_end_minutes
+    window_duration = window_end_minutes - window_start_minutes
+
+    entries_added = 0
+
+    for day_req in req.days:
+        day_date = date.fromisoformat(day_req.date)
+
+        # Deduplicate: skip if entries already exist for this day
+        if day_date in existing_dates:
+            continue
+
+        count = day_req.count
+        if count <= 0:
+            continue
+
+        # Create entries spread across the smoking window
+        for i in range(count):
+            if count == 1:
+                total_minutes = window_start_minutes + window_duration // 2
+            else:
+                total_minutes = window_start_minutes + int(i * window_duration / (count - 1))
+
+            hour = total_minutes // 60
+            minute = total_minutes % 60
+
+            ts = datetime.combine(
+                day_date, time(hour=hour, minute=minute), tzinfo=TZ
+            )
+
+            entry = CigaretteEntry(
+                id=uuid4(),
+                timestamp=ts,
+                is_bonus=day_req.is_bonus,
+            )
+            entries.append(entry)
+            entries_added += 1
+
+        existing_dates.add(day_date)
+
+    # Sort by timestamp and save
+    entries.sort(key=lambda e: e.timestamp)
+    entry_store.save(entries)
+
+    return {
+        "status": "ok",
+        "entries_added": entries_added,
+        "total": len(entries),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Progress / Savings endpoint
+# ---------------------------------------------------------------------------
+
+FUN_EQUIVALENTS = [
+    ("Coffee ☕", 3.50),
+    ("Pizza 🍕", 12.0),
+    ("Movie ticket 🎬", 14.0),
+    ("Book 📚", 20.0),
+    ("Concert ticket 🎵", 65.0),
+    ("Weekend trip 🧳", 200.0),
+    ("New phone 📱", 800.0),
+]
+
+MILESTONES_AVOIDED = [100, 250, 500, 1000, 2000, 5000]
+MILESTONES_SAVED = [50, 100, 200, 500, 1000, 2000]
+
+
+@app.get("/api/progress")
+async def get_progress():
+    """Return comprehensive progress/savings data for charting."""
+    engine = _get_engine()
+    config = config_store.load()
+    entries = entry_store.load()
+    now = _now()
+    today = now.date()
+
+    # --- Aggregate entries by date ---
+    daily_counts: dict[date, int] = defaultdict(int)
+    for e in entries:
+        ts = e.timestamp.astimezone(TZ) if e.timestamp.tzinfo else e.timestamp.replace(tzinfo=TZ)
+        daily_counts[ts.date()] += 1
+
+    # --- Build cumulative arrays ---
+    cumulative_avoided = []
+    cumulative_saved = []
+    total_smoked_so_far = 0
+    baseline = config.baseline_daily_count
+    cost = config.cost_per_cigarette
+
+    current = config.start_date
+    while current <= today:
+        smoked_that_day = daily_counts.get(current, 0)
+        total_smoked_so_far += smoked_that_day
+        days_elapsed = (current - config.start_date).days + 1
+        would_have_smoked = days_elapsed * baseline
+        avoided = max(0, would_have_smoked - total_smoked_so_far)
+        saved = avoided * cost
+
+        cumulative_avoided.append({
+            "date": current.isoformat(),
+            "avoided_cumulative": avoided,
+        })
+        cumulative_saved.append({
+            "date": current.isoformat(),
+            "saved_cumulative": round(saved, 2),
+        })
+        current += timedelta(days=1)
+
+    # --- Current totals ---
+    total_smoked = len(entries)
+    current_avoided = engine.cigarettes_avoided(total_smoked, now)
+    current_saved = engine.money_saved(total_smoked, now)
+
+    # --- Projections ---
+    quit_dt = engine.quit_date()
+    total_days_program = (quit_dt - config.start_date).days
+    # Project assuming current avg smoking rate continues
+    days_so_far = max(1, engine.days_since_start(now))
+    avg_daily_smoked = total_smoked / days_so_far
+    days_remaining = max(0, (quit_dt - today).days)
+    projected_total_smoked = total_smoked + int(avg_daily_smoked * days_remaining)
+    projected_would_have = total_days_program * baseline
+    projected_total_avoided = max(0, projected_would_have - projected_total_smoked)
+    projected_total_saved = round(projected_total_avoided * cost, 2)
+
+    projections = {
+        "quit_date": quit_dt.isoformat(),
+        "projected_total_avoided": projected_total_avoided,
+        "projected_total_saved": projected_total_saved,
+    }
+
+    # --- Milestones ---
+    milestones = []
+
+    # Avoided milestones
+    for target in MILESTONES_AVOIDED:
+        reached = current_avoided >= target
+        reached_date = None
+        if reached:
+            # Find the date it was reached
+            running_smoked = 0
+            d = config.start_date
+            while d <= today:
+                running_smoked += daily_counts.get(d, 0)
+                days_el = (d - config.start_date).days + 1
+                would = days_el * baseline
+                if would - running_smoked >= target:
+                    reached_date = d.isoformat()
+                    break
+                d += timedelta(days=1)
+        milestones.append({
+            "name": f"{target} avoided",
+            "reached": reached,
+            "date": reached_date,
+        })
+
+    # Saved milestones
+    for target in MILESTONES_SAVED:
+        reached = current_saved >= target
+        reached_date = None
+        if reached:
+            running_smoked = 0
+            d = config.start_date
+            while d <= today:
+                running_smoked += daily_counts.get(d, 0)
+                days_el = (d - config.start_date).days + 1
+                would = days_el * baseline
+                av = would - running_smoked
+                if av * cost >= target:
+                    reached_date = d.isoformat()
+                    break
+                d += timedelta(days=1)
+        milestones.append({
+            "name": f"€{target} saved",
+            "reached": reached,
+            "date": reached_date,
+        })
+
+    # --- Fun equivalents ---
+    fun_equivalents = []
+    for name, unit_cost in FUN_EQUIVALENTS:
+        count = int(current_saved / unit_cost)
+        if count > 0:
+            fun_equivalents.append({
+                "amount": round(current_saved, 2),
+                "equivalent": f"That's {count} {name}",
+            })
+
+    # --- Weekly comparison ---
+    weekly_comparison = []
+    num_weeks = min(
+        len(config.weekly_schedules),
+        (today - config.start_date).days // 7 + 1,
+    )
+    for week_idx in range(num_weeks):
+        week_start_date = config.start_date + timedelta(weeks=week_idx)
+        week_end_date = week_start_date + timedelta(days=7)
+
+        week_smoked = 0
+        d = week_start_date
+        while d < week_end_date and d <= today:
+            week_smoked += daily_counts.get(d, 0)
+            d += timedelta(days=1)
+
+        # Allowance for the week
+        week_dt = datetime.combine(week_start_date, time.min, tzinfo=TZ)
+        daily_allow = engine.daily_allowance(week_dt)
+        days_in_week = min(7, (today - week_start_date).days + 1) if week_end_date > today else 7
+        week_allowance = daily_allow * days_in_week
+
+        # Baseline for the week
+        week_baseline = baseline * days_in_week
+        saved_vs_baseline = (week_baseline - week_smoked) * cost
+
+        weekly_comparison.append({
+            "week": week_idx + 1,
+            "smoked": week_smoked,
+            "allowance": week_allowance,
+            "saved_vs_baseline": round(saved_vs_baseline, 2),
+        })
+
+    return {
+        "cumulative_avoided": cumulative_avoided,
+        "cumulative_saved": cumulative_saved,
+        "projections": projections,
+        "milestones": milestones,
+        "fun_equivalents": fun_equivalents,
+        "weekly_comparison": weekly_comparison,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Notifications endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/notifications/schedule")
+async def trigger_notification_check():
+    """Manually trigger a notification check (can be called by HA automation)."""
+    await _check_and_send_notifications()
+    return {"status": "ok", "checked_at": datetime.now(TZ).isoformat()}
+
+
+@app.get("/api/notifications/pending")
+async def get_pending_notifications():
+    """Return what notifications would be sent right now (dry-run)."""
+    now = datetime.now(TZ)
+    engine = _get_engine()
+    entries = entry_store.load()
+    schedule = engine.current_week_schedule(now)
+
+    pending = []
+
+    # 9:00 AM check
+    if now.hour == 9 and now.minute == 0:
+        allowance = engine.daily_allowance(now)
+        if schedule.mode == ScheduleMode.QUIT:
+            pending.append({
+                "type": "daily_reminder",
+                "title": "🎯 Stay strong!",
+                "message": "You're in quit mode. No cigarettes today — you've got this!",
+            })
+        else:
+            pending.append({
+                "type": "daily_reminder",
+                "title": "☀️ Good morning!",
+                "message": f"Today's allowance: {allowance} cigarettes. Make them count!",
+            })
+
+        # Monday weekly summary
+        if now.weekday() == 0:
+            last_week_start = engine.current_week_start(now) - timedelta(weeks=1)
+            last_week_end = engine.current_week_start(now)
+            last_week_entries = [
+                e for e in entries
+                if last_week_start <= e.timestamp.astimezone(TZ) < last_week_end
+            ]
+            smoked_last_week = len(last_week_entries)
+            total_smoked = len(entries)
+            avoided = engine.cigarettes_avoided(total_smoked, now)
+            saved = engine.money_saved(total_smoked, now)
+            pending.append({
+                "type": "weekly_summary",
+                "title": "📊 Weekly Summary",
+                "message": (
+                    f"Last week: {smoked_last_week} smoked. "
+                    f"Total avoided: {avoided}. Total saved: €{saved:.2f}."
+                ),
+            })
+
+    # Mode-specific
+    if schedule.mode == ScheduleMode.DAILY:
+        times = engine.smoking_schedule_times(now)
+        for h, m in times:
+            if now.hour == h and now.minute == m:
+                today_entries = _entries_today(entries, now)
+                smoked = len([e for e in today_entries if not e.is_bonus])
+                remaining = max(0, engine.daily_allowance(now) - smoked)
+                if remaining > 0:
+                    pending.append({
+                        "type": "schedule_reminder",
+                        "title": "⏰ Scheduled smoke time",
+                        "message": f"You may have a cigarette now. {remaining} remaining today.",
+                    })
+                break
+
+    elif schedule.mode == ScheduleMode.INTERVAL:
+        non_bonus = [e for e in entries if not e.is_bonus]
+        if non_bonus:
+            last_entry = non_bonus[-1].timestamp.astimezone(TZ)
+            interval_hours = schedule.interval_hours
+            next_allowed = last_entry + timedelta(hours=interval_hours)
+            current_minute = now.replace(second=0, microsecond=0)
+            if current_minute == next_allowed.replace(second=0, microsecond=0):
+                pending.append({
+                    "type": "interval_elapsed",
+                    "title": "✅ Interval elapsed",
+                    "message": f"Your {interval_hours:.1f}h interval is up. You may smoke now.",
+                })
+
+    return {
+        "pending": pending,
+        "checked_at": now.isoformat(),
+        "mode": schedule.mode.name.lower(),
+        "last_scheduler_run": _last_notification_check.isoformat() if _last_notification_check else None,
     }
 
 

@@ -150,12 +150,41 @@
         {#if status.schedule_times && status.schedule_times.length > 0}
           <div class="dots" aria-label="Schedule times">
             {#each status.schedule_times as time, i}
+              {@const timeStr = String(time[0]).padStart(2, '0') + ':' + String(time[1]).padStart(2, '0')}
               <div
                 class="dot"
                 class:filled={i < (status.smoked_today ?? 0)}
-                title={time}
+                title={timeStr}
               ></div>
             {/each}
+          </div>
+          <!-- Smoking Times Timeline -->
+          <div class="timeline" aria-label="Smoking schedule timeline">
+            <div class="timeline-track"></div>
+            <div class="timeline-dots">
+              {#each status.schedule_times as time, i}
+                {@const h = time[0]}
+                {@const m = time[1]}
+                {@const timeStr = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0')}
+                {@const now = new Date()}
+                {@const timeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m)}
+                {@const isPast = timeDate < now}
+                {@const isNearest = (() => {
+                  const times = status.schedule_times.map(t => {
+                    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), t[0], t[1])
+                  })
+                  const futureTimes = times.filter(t => t >= now)
+                  if (futureTimes.length === 0) return false
+                  const nearest = futureTimes.reduce((a, b) => a < b ? a : b)
+                  return timeDate.getTime() === nearest.getTime()
+                })()}
+                {@const isLogged = i < (status.smoked_today ?? 0)}
+                <div class="timeline-point" class:past={isPast} class:nearest={isNearest} class:future={!isPast && !isNearest} class:logged={isLogged}>
+                  <div class="timeline-dot" title="{timeStr}{isLogged ? ' (logged)' : ''}" aria-label="{timeStr}, {isPast ? 'past' : isNearest ? 'next' : 'upcoming'}{isLogged ? ', logged' : ''}"></div>
+                  <span class="timeline-label">{timeStr}</span>
+                </div>
+              {/each}
+            </div>
           </div>
         {/if}
       {:else if status.mode === 'quit'}
@@ -349,5 +378,84 @@
     color: var(--color-secondary-text);
     font-style: italic;
     padding: 8px 0;
+  }
+
+  /* Smoking Times Timeline */
+  .timeline {
+    position: relative;
+    margin-top: 20px;
+    padding: 0 8px;
+  }
+
+  .timeline-track {
+    position: absolute;
+    top: 10px;
+    left: 16px;
+    right: 16px;
+    height: 2px;
+    background: var(--color-surface-elevated);
+    border-radius: 1px;
+  }
+
+  .timeline-dots {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+  }
+
+  .timeline-point {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .timeline-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--color-surface-elevated);
+    background: var(--color-surface);
+    transition: all var(--transition);
+    position: relative;
+    z-index: 1;
+  }
+
+  .timeline-point.past .timeline-dot {
+    background: var(--color-success);
+    border-color: var(--color-success);
+  }
+
+  .timeline-point.logged .timeline-dot {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    box-shadow: 0 0 6px rgba(52, 199, 89, 0.4);
+  }
+
+  .timeline-point.nearest .timeline-dot {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .timeline-point.future .timeline-dot {
+    background: transparent;
+    border-color: var(--color-secondary-text);
+  }
+
+  .timeline-label {
+    font-size: 10px;
+    color: var(--color-secondary-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .timeline-point.nearest .timeline-label {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(100, 210, 255, 0.4); }
+    50% { transform: scale(1.15); box-shadow: 0 0 10px 4px rgba(100, 210, 255, 0.2); }
   }
 </style>

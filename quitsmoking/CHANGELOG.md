@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0
+
+### New Features
+- **Catch-Up Manager**: Detects missed days on app load, shows dialog to backfill entries or skip. Also detects partially-logged yesterday.
+- **Progress tab**: Cumulative line charts (avoided + saved), milestones with checkmarks, fun equivalents (coffees, pizzas, concerts), weekly comparison table, projections to quit date.
+- **Schedule editor**: Edit future weeks directly in Settings. Add/remove weeks, change mode (daily/interval/quit), lock past weeks.
+- **Smoking times timeline**: Visual dot timeline in daily mode showing past (green), current (pulsing blue), and future (gray) scheduled times.
+- **Scheduled notifications**: Background task sends daily reminders (9AM), weekly Monday summaries, per-cigarette time alerts, and interval-elapsed notifications via HA notify.
+
+### Improvements
+- Dashboard: countdown progress bar now ticks correctly using interval_hours
+- Dashboard: schedule_times rendered from [hour, minute] tuples correctly
+- 4 tabs: Dashboard, History, Progress, Settings
+
 ## 1.0.8
 
 - Fix history chart: endpoint now returns daily aggregated data (`{days: [...]}`)

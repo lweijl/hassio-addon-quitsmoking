@@ -2,7 +2,9 @@
   import { onMount, onDestroy } from 'svelte'
   import Dashboard from './lib/Dashboard.svelte'
   import History from './lib/History.svelte'
+  import Progress from './lib/Progress.svelte'
   import Settings from './lib/Settings.svelte'
+  import CatchUp from './lib/CatchUp.svelte'
   import { getStatus } from './lib/api.js'
 
   let activeTab = $state('dashboard')
@@ -31,6 +33,10 @@
 
   function setTab(tab) {
     activeTab = tab
+  }
+
+  function handleCatchUpComplete() {
+    fetchStatus()
   }
 </script>
 
@@ -62,6 +68,16 @@
     </button>
     <button
       class="tab-btn"
+      class:active={activeTab === 'progress'}
+      onclick={() => setTab('progress')}
+      role="tab"
+      aria-selected={activeTab === 'progress'}
+      aria-label="Progress"
+    >
+      Progress
+    </button>
+    <button
+      class="tab-btn"
       class:active={activeTab === 'settings'}
       onclick={() => setTab('settings')}
       role="tab"
@@ -84,10 +100,14 @@
       <Dashboard {status} onRefresh={fetchStatus} />
     {:else if activeTab === 'history'}
       <History />
+    {:else if activeTab === 'progress'}
+      <Progress />
     {:else if activeTab === 'settings'}
       <Settings />
     {/if}
   </main>
+
+  <CatchUp onComplete={handleCatchUpComplete} />
 </div>
 
 <style>
