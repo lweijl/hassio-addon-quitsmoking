@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.2
+
+### Improvements
+- **Smart notifications**: All notifications are now fully context-aware:
+  - Morning notification checks what you've already smoked and adapts the message.
+  - Interval mode morning: tells you if your interval is up or how long until next allowed.
+  - Evening check-in is mode-aware: interval mode shows "done for today, next at 07:30 tomorrow" if next allowed is after window end.
+  - Evening handles over-budget case in daily mode.
+  - Daily slot reminders skip already-used slots and show slot position (e.g., "Slot 2/5").
+  - Interval elapsed shows actual hours since last smoke and today's count.
+- **Quiet hours**: No notifications fire outside the smoking window (07:30–22:30). If an interval elapses at 3am, the notification waits until the window opens.
+- **Evening check-in moved**: Now fires 1 hour before window end (21:30) instead of fixed 21:00.
+
 ## 1.3.1
 
 ### Fixes
