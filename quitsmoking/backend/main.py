@@ -749,12 +749,6 @@ async def backfill_days(req: BackfillRequest):
     config = config_store.load()
     entries = entry_store.load()
 
-    # Build set of dates that already have entries
-    existing_dates: set[date] = set()
-    for e in entries:
-        ts = e.timestamp.astimezone(TZ) if e.timestamp.tzinfo else e.timestamp.replace(tzinfo=TZ)
-        existing_dates.add(ts.date())
-
     window_start_minutes = config.smoking_window_start_minutes
     window_end_minutes = config.smoking_window_end_minutes
     window_duration = window_end_minutes - window_start_minutes
@@ -763,10 +757,6 @@ async def backfill_days(req: BackfillRequest):
 
     for day_req in req.days:
         day_date = date.fromisoformat(day_req.date)
-
-        # Deduplicate: skip if entries already exist for this day
-        if day_date in existing_dates:
-            continue
 
         count = day_req.count
         if count <= 0:
@@ -793,8 +783,6 @@ async def backfill_days(req: BackfillRequest):
             )
             entries.append(entry)
             entries_added += 1
-
-        existing_dates.add(day_date)
 
     # Sort by timestamp and save
     entries.sort(key=lambda e: e.timestamp)
