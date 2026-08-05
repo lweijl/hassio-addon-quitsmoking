@@ -25,7 +25,7 @@ from .models import (
     LogRequest,
     StatusResponse,
 )
-from .notifications import send_notification
+from .notifications import send_notification, Actions
 from .persistence import ConfigStore, EntryStore
 
 logger = logging.getLogger(__name__)
@@ -69,11 +69,15 @@ async def _check_and_send_notifications():
             await send_notification(
                 "🎯 Stay strong!",
                 "You're in quit mode. No cigarettes today — you've got this!",
+                actions=[Actions.open_progress(), Actions.stay_strong()],
+                tag="daily_reminder",
             )
         else:
             await send_notification(
                 "☀️ Good morning!",
                 f"Today's allowance: {allowance} cigarettes. Make them count!",
+                actions=[Actions.open_app(), Actions.open_progress()],
+                tag="daily_reminder",
             )
 
         # Monday weekly summary
@@ -93,6 +97,8 @@ async def _check_and_send_notifications():
                 "📊 Weekly Summary",
                 f"Last week: {smoked_last_week} smoked. "
                 f"Total avoided: {avoided}. Total saved: €{saved:.2f}.",
+                actions=[Actions.open_progress()],
+                tag="weekly_summary",
             )
 
     # Mode-specific notifications
@@ -108,6 +114,12 @@ async def _check_and_send_notifications():
                     await send_notification(
                         "⏰ Scheduled smoke time",
                         f"You may have a cigarette now. {remaining} remaining today.",
+                        actions=[
+                            Actions.log_cigarette(),
+                            Actions.skip(),
+                            Actions.open_app(),
+                        ],
+                        tag="smoke_time",
                     )
                 break
 
@@ -123,7 +135,46 @@ async def _check_and_send_notifications():
                 await send_notification(
                     "✅ Interval elapsed",
                     f"Your {interval_hours:.1f}h interval is up. You may smoke now.",
+                    actions=[
+                        Actions.log_cigarette(),
+                        Actions.skip(),
+                        Actions.open_app(),
+                    ],
+                    tag="interval_elapsed",
                 )
+
+    # 21:00 Evening check-in (daily summary)
+    if now.hour == 21 and now.minute == 0:
+        today_entries = _entries_today(entries, now)
+        smoked = len([e for e in today_entries if not e.is_bonus])
+        allowance = engine.daily_allowance(now)
+        under_budget = allowance - smoked
+
+        if schedule.mode == ScheduleMode.QUIT:
+            total_smoked = len(entries)
+            avoided = engine.cigarettes_avoided(total_smoked, now)
+            await send_notification(
+                "🌙 Day complete!",
+                f"Another smoke-free day! Total avoided: {avoided}. You're crushing it!",
+                actions=[Actions.open_progress()],
+                tag="evening_checkin",
+            )
+        elif under_budget > 0:
+            await send_notification(
+                "🌙 Great day!",
+                f"You're {under_budget} under your daily limit. "
+                f"That's {under_budget} extra cigarettes avoided! 🎉",
+                actions=[Actions.open_progress()],
+                tag="evening_checkin",
+            )
+        elif under_budget == 0:
+            await send_notification(
+                "🌙 Day complete",
+                f"Used your full allowance of {allowance} today. "
+                f"On track with your taper plan. 👍",
+                actions=[Actions.open_app()],
+                tag="evening_checkin",
+            )
 
 
 @asynccontextmanager
@@ -203,11 +254,37 @@ def _build_status(engine: ScheduleEngine, entries: list[CigaretteEntry]) -> Stat
 
     # Last non-bonus entry for interval calculation
     non_bonus_entries = [e for e in entries if not e.is_bonus]
-    last_entry_ts = non_bonus_entries[-1].timestamp if non_bonus_entries else None
+    last_entry_ts = non_bonus_entries[-1].timestamp.astimezone(TZ) if non_bonus_entries else None
 
     can_smoke = engine.can_smoke_now(last_entry_ts, now)
     time_until = engine.time_until_next(last_entry_ts, now)
     next_allowed = engine.next_allowed_time(last_entry_ts, now)
+
+    # In daily mode, compute next_allowed_time from schedule times
+    if schedule.mode == ScheduleMode.DAILY and remaining_today > 0:
+        schedule_times = engine.smoking_schedule_times(now)
+        if schedule_times:
+            # Find the next scheduled time that hasn't been used yet
+            # The number smoked tells us which slot we're on
+            next_slot_idx = smoked_today  # 0-indexed: if smoked 2, next is slot 2
+
+            # Scan forward from next_slot_idx to find the first FUTURE slot
+            found_future = False
+            for idx in range(next_slot_idx, len(schedule_times)):
+                h, m = schedule_times[idx]
+                next_scheduled = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                if next_scheduled > now:
+                    next_allowed = next_scheduled
+                    time_until = (next_scheduled - now).total_seconds()
+                    can_smoke = False
+                    found_future = True
+                    break
+
+            if not found_future:
+                # All remaining slots have passed — can smoke now
+                can_smoke = True
+                time_until = 0.0
+                next_allowed = None
 
     # Mode string
     if schedule.mode == ScheduleMode.DAILY:
@@ -251,7 +328,15 @@ def _build_status(engine: ScheduleEngine, entries: list[CigaretteEntry]) -> Stat
 async def get_status():
     engine = _get_engine()
     entries = entry_store.load()
-    return _build_status(engine, entries)
+    status = _build_status(engine, entries)
+    return JSONResponse(
+        content=status.model_dump(mode="json"),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.post("/api/log", response_model=StatusResponse)
@@ -272,19 +357,38 @@ async def log_cigarette(req: LogRequest):
     # Send notification
     if req.is_bonus:
         await send_notification(
-            "🚬 Bonus used",
+            "🎁 Bonus used",
             f"Bonus cigarette logged. {status.remaining_bonus} bonus remaining this week.",
+            actions=[Actions.open_app()],
+            tag="logged",
         )
     else:
         if status.remaining_today == 0:
+            avoided = status.cigarettes_avoided
+            saved = status.money_saved
             await send_notification(
                 "⚠️ Daily limit reached",
-                "You've used all your regular cigarettes for today.",
+                f"All regular cigarettes used for today. "
+                f"You've avoided {avoided} total (€{saved:.2f} saved).",
+                actions=[
+                    Actions.log_bonus() if status.remaining_bonus > 0 else Actions.stay_strong(),
+                    Actions.open_progress(),
+                ],
+                tag="limit_reached",
             )
         else:
+            # Build a useful message with next-time info
+            parts = [f"{status.remaining_today} remaining today."]
+            if status.next_allowed_time and status.time_until_next_seconds > 0:
+                next_str = status.next_allowed_time.astimezone(TZ).strftime("%H:%M")
+                parts.append(f"Next at {next_str}.")
+            if status.cigarettes_avoided > 0:
+                parts.append(f"📊 {status.cigarettes_avoided} avoided so far!")
             await send_notification(
-                "🚬 Cigarette logged",
-                f"{status.remaining_today} remaining today.",
+                "🚬 Logged",
+                " ".join(parts),
+                actions=[Actions.open_app()],
+                tag="logged",
             )
 
     return status
@@ -972,6 +1076,178 @@ async def get_pending_notifications():
         "mode": schedule.mode.name.lower(),
         "last_scheduler_run": _last_notification_check.isoformat() if _last_notification_check else None,
     }
+
+
+@app.post("/api/notifications/test")
+async def test_notification():
+    """Send a test notification to verify notification config is working."""
+    from .notifications import NOTIFY_SERVICES
+    result = await send_notification(
+        "🧪 Test Notification",
+        "If you see this, notifications are working! "
+        f"Configured services: {', '.join(NOTIFY_SERVICES)}",
+        actions=[Actions.open_app()],
+        tag="test",
+    )
+    return {
+        "status": "ok" if result else "failed",
+        "services": NOTIFY_SERVICES,
+        "sent_at": datetime.now(TZ).isoformat(),
+    }
+
+
+@app.get("/api/debug")
+async def debug_status():
+    """Raw computed values for troubleshooting."""
+    engine = _get_engine()
+    config = config_store.load()
+    entries = entry_store.load()
+    now = _now()
+    schedule = engine.current_week_schedule(now)
+
+    non_bonus = [e for e in entries if not e.is_bonus]
+    last_entry_ts = non_bonus[-1].timestamp.astimezone(TZ) if non_bonus else None
+
+    return {
+        "now": now.isoformat(),
+        "start_date": config.start_date.isoformat(),
+        "quit_date": engine.quit_date().isoformat(),
+        "days_since_start": engine.days_since_start(now),
+        "days_until_quit": engine.days_until_quit(now),
+        "week_index": engine.current_week_index(now),
+        "total_weeks": len(config.weekly_schedules),
+        "current_mode": schedule.mode.name,
+        "interval_hours": schedule.interval_hours if schedule.mode == ScheduleMode.INTERVAL else None,
+        "daily_allowance": engine.daily_allowance(now),
+        "last_entry_ts": last_entry_ts.isoformat() if last_entry_ts else None,
+        "can_smoke_now": engine.can_smoke_now(last_entry_ts, now),
+        "next_allowed_time": (
+            engine.next_allowed_time(last_entry_ts, now).isoformat()
+            if engine.next_allowed_time(last_entry_ts, now)
+            else None
+        ),
+        "time_until_next_seconds": engine.time_until_next(last_entry_ts, now),
+        "total_entries": len(entries),
+        "total_non_bonus": len(non_bonus),
+        "entries_today": len(_entries_today(entries, now)),
+        "notify_services": __import__("os").environ.get("NOTIFY_SERVICES", ""),
+        "notify_service_legacy": __import__("os").environ.get("NOTIFY_SERVICE", ""),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Notification action endpoints (triggered by tapping notification buttons)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/actions/log")
+@app.post("/api/actions/log")
+async def action_log_cigarette():
+    """Quick-log from notification button. Logs a regular cigarette."""
+    engine = _get_engine()
+    now = _now()
+
+    entry = CigaretteEntry(
+        id=uuid4(),
+        timestamp=now,
+        is_bonus=False,
+    )
+    entry_store.add_entry(entry)
+
+    entries = entry_store.load()
+    status = _build_status(engine, entries)
+
+    # Send a confirmation notification (replaces the action notification)
+    parts = [f"✓ Logged. {status.remaining_today} remaining today."]
+    if status.next_allowed_time and status.time_until_next_seconds > 0:
+        next_str = status.next_allowed_time.astimezone(TZ).strftime("%H:%M")
+        parts.append(f"Next at {next_str}.")
+    await send_notification(
+        "🚬 Logged from notification",
+        " ".join(parts),
+        tag="logged",
+    )
+
+    # Return HTML for when opened in browser via URI
+    return JSONResponse(
+        content={"status": "ok", "action": "logged", "remaining_today": status.remaining_today},
+        headers={"Content-Type": "application/json"},
+    )
+
+
+@app.get("/api/actions/log_bonus")
+@app.post("/api/actions/log_bonus")
+async def action_log_bonus():
+    """Quick-log bonus from notification button."""
+    engine = _get_engine()
+    now = _now()
+
+    # Check if bonus is available
+    entries = entry_store.load()
+    week_entries = _entries_this_week(entries, engine, now)
+    bonus_used = len([e for e in week_entries if e.is_bonus])
+    bonus_allow = engine.bonus_allowance(now)
+
+    if bonus_used >= bonus_allow:
+        await send_notification(
+            "❌ No bonus left",
+            "You've used all bonus cigarettes this week.",
+            tag="logged",
+        )
+        return JSONResponse(
+            content={"status": "error", "detail": "No bonus remaining"},
+            status_code=400,
+        )
+
+    entry = CigaretteEntry(
+        id=uuid4(),
+        timestamp=now,
+        is_bonus=True,
+    )
+    entry_store.add_entry(entry)
+
+    remaining_bonus = bonus_allow - bonus_used - 1
+    await send_notification(
+        "🎁 Bonus logged",
+        f"Bonus cigarette logged. {remaining_bonus} bonus remaining this week.",
+        tag="logged",
+    )
+
+    return JSONResponse(
+        content={"status": "ok", "action": "bonus_logged", "remaining_bonus": remaining_bonus},
+    )
+
+
+@app.get("/api/actions/skip")
+@app.post("/api/actions/skip")
+async def action_skip():
+    """Record a successful craving skip. Sends encouragement."""
+    engine = _get_engine()
+    entries = entry_store.load()
+    now = _now()
+    total_smoked = len(entries)
+    avoided = engine.cigarettes_avoided(total_smoked, now)
+    saved = engine.money_saved(total_smoked, now)
+
+    encouragements = [
+        "You're stronger than the craving! 💪",
+        "Every skip is a victory. Keep going! 🏆",
+        "Your lungs just thanked you. 🫁",
+        "Craving passed. Freedom gets easier! 🌅",
+        "That's willpower in action! 🔥",
+    ]
+    from random import choice
+    msg = choice(encouragements)
+
+    await send_notification(
+        "💪 Craving resisted!",
+        f"{msg} You've avoided {avoided} cigarettes (€{saved:.2f} saved).",
+        actions=[Actions.open_progress()],
+        tag="encouragement",
+    )
+
+    return JSONResponse(
+        content={"status": "ok", "action": "skipped", "encouragement": msg},
+    )
 
 
 # ---------------------------------------------------------------------------
