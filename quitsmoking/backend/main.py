@@ -42,8 +42,36 @@ _scheduler_task: Optional[asyncio.Task] = None
 _last_notification_check: Optional[datetime] = None
 
 # Track which notifications have been sent today/this cycle to avoid duplicates
-# Keys: notification tag + date (e.g., "daily_reminder:2026-08-05")
-_sent_notifications: set[str] = set()
+# Persisted to disk so restarts don't re-fire notifications
+_SENT_FILE = None  # Initialized after DATA_DIR is available
+
+
+def _get_sent_file():
+    """Get the path to the sent-notifications file."""
+    global _SENT_FILE
+    if _SENT_FILE is None:
+        from .persistence import DATA_DIR
+        _SENT_FILE = DATA_DIR / "sent_notifications.json"
+    return _SENT_FILE
+
+
+def _load_sent() -> set[str]:
+    """Load sent notifications from disk."""
+    path = _get_sent_file()
+    if not path.exists():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return set(data) if isinstance(data, list) else set()
+    except (json.JSONDecodeError, ValueError):
+        return set()
+
+
+def _save_sent(sent: set[str]) -> None:
+    """Persist sent notifications to disk."""
+    path = _get_sent_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(list(sent)), encoding="utf-8")
 
 
 def _sent_key(tag: str, now: datetime) -> str:
@@ -53,16 +81,19 @@ def _sent_key(tag: str, now: datetime) -> str:
 
 def _was_sent(tag: str, now: datetime) -> bool:
     """Check if this notification was already sent today."""
-    return _sent_key(tag, now) in _sent_notifications
+    sent = _load_sent()
+    return _sent_key(tag, now) in sent
 
 
 def _mark_sent(tag: str, now: datetime) -> None:
-    """Mark a notification as sent for today."""
-    _sent_notifications.add(_sent_key(tag, now))
+    """Mark a notification as sent for today. Persists to disk."""
+    sent = _load_sent()
+    sent.add(_sent_key(tag, now))
     # Clean up old keys (anything not from today)
     today = now.date().isoformat()
-    stale = {k for k in _sent_notifications if not k.endswith(today)}
-    _sent_notifications.difference_update(stale)
+    stale = {k for k in sent if not k.endswith(today)}
+    sent.difference_update(stale)
+    _save_sent(sent)
 
 
 async def _notification_scheduler():

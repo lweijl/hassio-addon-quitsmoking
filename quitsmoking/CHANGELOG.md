@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1
+
+### Fixes
+- **Notification dedup survives restarts**: The "already sent" tracking was in-memory only, so every addon restart (including updates) would re-fire the morning notification. Now persisted to `sent_notifications.json` on disk.
+
 ## 1.3.0
 
 ### New Features
