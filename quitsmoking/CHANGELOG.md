@@ -1,11 +1,11 @@
 # Changelog
 
-## 1.2.2
+## 1.2.3
 
 ### New Features
 - **Configurable notification targets**: Choose which devices receive notifications instead of broadcasting to all. Configure a list of specific services (e.g., `notify.mobile_app_iphone`) in the addon settings.
+- **Test notification button**: In Settings, tap "🔔 Send Test Notification" to verify your devices receive it.
 - **Log for past date**: New "📅 Log for a past date" button on the dashboard lets you retroactively log cigarettes (including bonus) for yesterday or earlier.
-- **Test notification endpoint**: `POST /api/notifications/test` sends a test notification to verify your config.
 - **Debug endpoint**: `GET /api/debug` shows raw computed values for troubleshooting.
 
 ### Bug Fixes

@@ -24,6 +24,10 @@
   let importSuccess = $state(null)
   let importing = $state(false)
 
+  // Notification test state
+  let testingNotification = $state(false)
+  let notificationResult = $state(null)
+
   onMount(async () => {
     await fetchConfig()
   })
@@ -171,6 +175,27 @@
       importing = false
       // Reset file input
       event.target.value = ''
+    }
+  }
+
+  async function testNotification() {
+    testingNotification = true
+    notificationResult = null
+    try {
+      const baseUrl = document.baseURI || window.location.href
+      const url = new URL(baseUrl)
+      let pathname = url.pathname.replace(/\/[^/]*\.[^/]*$/, '').replace(/\/$/, '')
+      const resp = await fetch(`${url.origin}${pathname}/api/notifications/test`, { method: 'POST' })
+      const data = await resp.json()
+      if (data.status === 'ok') {
+        notificationResult = `✅ Test sent to: ${data.services.join(', ')}`
+      } else {
+        notificationResult = `⚠️ Failed — check addon logs for details`
+      }
+    } catch (e) {
+      notificationResult = `⚠️ Error: ${e.message}`
+    } finally {
+      testingNotification = false
     }
   }
 </script>
@@ -422,6 +447,28 @@
         <p class="success-text fade-in">{importSuccess}</p>
       {/if}
     </div>
+
+    <!-- Notifications -->
+    <div class="card">
+      <h2 class="section-title">Notifications</h2>
+      <p class="import-description">
+        Send a test notification to verify your configured devices receive it.
+        Configure which devices get notifications in the addon's Configuration tab.
+      </p>
+      <button
+        class="btn btn-primary"
+        onclick={testNotification}
+        disabled={testingNotification}
+        aria-label="Send test notification"
+      >
+        {testingNotification ? '📡 Sending...' : '🔔 Send Test Notification'}
+      </button>
+      {#if notificationResult}
+        <p class="notification-result fade-in" class:success-text={notificationResult.startsWith('✅')} class:error-text={notificationResult.startsWith('⚠️')}>
+          {notificationResult}
+        </p>
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -650,5 +697,10 @@
     font-size: 14px;
     padding: 10px 16px;
     min-height: 40px;
+  }
+
+  .notification-result {
+    margin-top: 12px;
+    font-size: 14px;
   }
 </style>
