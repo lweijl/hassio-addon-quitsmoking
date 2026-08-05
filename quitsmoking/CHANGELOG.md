@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0
+
+### New Features
+- **Health Timeline**: New tab (🫁) showing real health recovery milestones tied to your time since last cigarette. Progress rings show how close you are to each milestone.
+- **Craving Journal**: New tab (📓) to log cravings with trigger, intensity (1-5), and whether you resisted. Patterns view shows analysis by trigger, time of day, and trends.
+- **Weekly Report Card**: New tab (📊) with detailed weekly breakdown — grade (A-D), daily smoked vs allowance bars, best day, longest gap, achievements, and comparison to last week.
+
+### Improvements
+- **Navigation**: Tabs now use icons to fit all 7 sections (🏠 🫁 📓 📊 📈 🏆 ⚙️).
+
+### Fixes
+- **Docker version label**: Fixed `io.hass.version` label in Dockerfile — was hardcoded to 1.1.0, causing HA to not detect updates. Now uses `BUILD_VERSION` arg synced with config.yaml.
+
 ## 1.2.4
 
 ### New Features

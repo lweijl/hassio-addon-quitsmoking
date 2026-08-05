@@ -5,6 +5,9 @@
   import Progress from './lib/Progress.svelte'
   import Settings from './lib/Settings.svelte'
   import CatchUp from './lib/CatchUp.svelte'
+  import HealthTimeline from './lib/HealthTimeline.svelte'
+  import CravingJournal from './lib/CravingJournal.svelte'
+  import WeeklyReport from './lib/WeeklyReport.svelte'
   import { getStatus } from './lib/api.js'
 
   let activeTab = $state('dashboard')
@@ -54,7 +57,37 @@
       aria-selected={activeTab === 'dashboard'}
       aria-label="Dashboard"
     >
-      Dashboard
+      🏠
+    </button>
+    <button
+      class="tab-btn"
+      class:active={activeTab === 'health'}
+      onclick={() => setTab('health')}
+      role="tab"
+      aria-selected={activeTab === 'health'}
+      aria-label="Health Timeline"
+    >
+      🫁
+    </button>
+    <button
+      class="tab-btn"
+      class:active={activeTab === 'cravings'}
+      onclick={() => setTab('cravings')}
+      role="tab"
+      aria-selected={activeTab === 'cravings'}
+      aria-label="Craving Journal"
+    >
+      📓
+    </button>
+    <button
+      class="tab-btn"
+      class:active={activeTab === 'report'}
+      onclick={() => setTab('report')}
+      role="tab"
+      aria-selected={activeTab === 'report'}
+      aria-label="Weekly Report"
+    >
+      📊
     </button>
     <button
       class="tab-btn"
@@ -64,7 +97,7 @@
       aria-selected={activeTab === 'history'}
       aria-label="History"
     >
-      History
+      📈
     </button>
     <button
       class="tab-btn"
@@ -74,7 +107,7 @@
       aria-selected={activeTab === 'progress'}
       aria-label="Progress"
     >
-      Progress
+      🏆
     </button>
     <button
       class="tab-btn"
@@ -84,7 +117,7 @@
       aria-selected={activeTab === 'settings'}
       aria-label="Settings"
     >
-      Settings
+      ⚙️
     </button>
   </nav>
 
@@ -98,6 +131,12 @@
   <main class="tab-content fade-in">
     {#if activeTab === 'dashboard'}
       <Dashboard {status} onRefresh={fetchStatus} />
+    {:else if activeTab === 'health'}
+      <HealthTimeline />
+    {:else if activeTab === 'cravings'}
+      <CravingJournal />
+    {:else if activeTab === 'report'}
+      <WeeklyReport />
     {:else if activeTab === 'history'}
       <History />
     {:else if activeTab === 'progress'}

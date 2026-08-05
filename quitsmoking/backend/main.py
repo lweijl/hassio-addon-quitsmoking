@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta
 from typing import Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -1277,6 +1278,445 @@ async def action_skip():
     return JSONResponse(
         content={"status": "ok", "action": "skipped", "encouragement": msg},
     )
+
+
+# ---------------------------------------------------------------------------
+# Health Timeline
+# ---------------------------------------------------------------------------
+
+HEALTH_MILESTONES = [
+    {"minutes": 20, "title": "Heart rate normalizes", "icon": "❤️", "description": "Your heart rate and blood pressure begin to drop to normal levels."},
+    {"minutes": 480, "title": "Oxygen levels normal", "icon": "🫁", "description": "Carbon monoxide in your blood drops to normal. Oxygen levels return to normal."},
+    {"minutes": 1440, "title": "Heart attack risk drops", "icon": "💓", "description": "Your risk of heart attack begins to decrease."},
+    {"minutes": 2880, "title": "Taste & smell improve", "icon": "👃", "description": "Nerve endings start to regrow. Your sense of taste and smell begin to improve."},
+    {"minutes": 4320, "title": "Breathing easier", "icon": "🌬️", "description": "Bronchial tubes begin to relax and open up. Breathing becomes easier."},
+    {"minutes": 14400, "title": "Circulation improves", "icon": "🏃", "description": "Your circulation improves significantly. Walking becomes easier. Lung function increases up to 30%."},
+    {"minutes": 43200, "title": "Cough reduces", "icon": "😮‍💨", "description": "Cilia regrow in lungs. They can handle mucus, clean the lungs, and reduce infection risk. Coughing and shortness of breath decrease."},
+    {"minutes": 131400, "title": "Lung function restored", "icon": "🫁✨", "description": "Lung function continues to improve. Energy levels increase significantly."},
+    {"minutes": 525600, "title": "Heart disease risk halved", "icon": "❤️‍🩹", "description": "Your risk of coronary heart disease is half that of a smoker's."},
+    {"minutes": 2628000, "title": "Stroke risk normalized", "icon": "🧠", "description": "Your risk of stroke is reduced to that of a non-smoker."},
+    {"minutes": 5256000, "title": "Lung cancer risk halved", "icon": "🎗️", "description": "Your risk of lung cancer is about half that of a continuing smoker."},
+]
+
+
+@app.get("/api/health-timeline")
+async def get_health_timeline():
+    """Return health recovery milestones with progress based on time since last smoke."""
+    entries = entry_store.load()
+    now = _now()
+
+    # Find the last cigarette (any, including bonus)
+    if entries:
+        last_smoke = entries[-1].timestamp.astimezone(TZ)
+    else:
+        # No entries at all — use start date as reference
+        config = config_store.load()
+        last_smoke = datetime.combine(config.start_date, datetime.min.time(), tzinfo=TZ)
+
+    minutes_since_last = (now - last_smoke).total_seconds() / 60
+
+    milestones = []
+    for m in HEALTH_MILESTONES:
+        reached = minutes_since_last >= m["minutes"]
+        progress = min(1.0, minutes_since_last / m["minutes"]) if m["minutes"] > 0 else 1.0
+
+        # Calculate when this milestone will be reached
+        target_time = last_smoke + timedelta(minutes=m["minutes"])
+
+        milestones.append({
+            "title": m["title"],
+            "icon": m["icon"],
+            "description": m["description"],
+            "minutes_required": m["minutes"],
+            "reached": reached,
+            "progress": round(progress, 4),
+            "target_time": target_time.isoformat() if not reached else None,
+            "reached_at": target_time.isoformat() if reached else None,
+        })
+
+    return {
+        "last_smoke": last_smoke.isoformat(),
+        "minutes_since_last": round(minutes_since_last, 1),
+        "hours_since_last": round(minutes_since_last / 60, 1),
+        "milestones": milestones,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Craving Journal
+# ---------------------------------------------------------------------------
+
+CRAVING_TRIGGERS = [
+    "stress",
+    "boredom",
+    "social",
+    "after_meal",
+    "coffee",
+    "alcohol",
+    "habit",
+    "anxiety",
+    "celebration",
+    "other",
+]
+
+
+class CravingEntry(BaseModel):
+    trigger: str
+    intensity: int = 3  # 1-5
+    notes: Optional[str] = None
+    resisted: bool = True
+
+
+class CravingRecord(BaseModel):
+    id: UUID
+    timestamp: datetime
+    trigger: str
+    intensity: int
+    notes: Optional[str]
+    resisted: bool
+
+
+class CravingStore:
+    """Persist craving journal entries."""
+
+    def __init__(self):
+        from .persistence import DATA_DIR, _atomic_write
+        self.path = DATA_DIR / "cravings.json"
+        self._atomic_write = _atomic_write
+
+    def load(self) -> list[CravingRecord]:
+        if not self.path.exists():
+            return []
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            return [CravingRecord(**r) for r in raw]
+        except (json.JSONDecodeError, KeyError, ValueError):
+            return []
+
+    def save(self, records: list[CravingRecord]) -> None:
+        data = [r.model_dump(mode="json") for r in records]
+        self._atomic_write(self.path, json.dumps(data, indent=2, default=str))
+
+    def add(self, record: CravingRecord) -> None:
+        records = self.load()
+        records.append(record)
+        self.save(records)
+
+
+craving_store = CravingStore()
+
+
+@app.post("/api/cravings")
+async def log_craving(entry: CravingEntry):
+    """Log a craving event."""
+    if entry.intensity < 1 or entry.intensity > 5:
+        raise HTTPException(status_code=400, detail="Intensity must be 1-5")
+    if entry.trigger not in CRAVING_TRIGGERS:
+        raise HTTPException(status_code=400, detail=f"Invalid trigger. Valid: {CRAVING_TRIGGERS}")
+
+    record = CravingRecord(
+        id=uuid4(),
+        timestamp=_now(),
+        trigger=entry.trigger,
+        intensity=entry.intensity,
+        notes=entry.notes,
+        resisted=entry.resisted,
+    )
+    craving_store.add(record)
+
+    return {"status": "ok", "id": str(record.id), "timestamp": record.timestamp.isoformat()}
+
+
+@app.get("/api/cravings")
+async def get_cravings():
+    """Return all craving entries."""
+    records = craving_store.load()
+    return {"cravings": [r.model_dump(mode="json") for r in records]}
+
+
+@app.get("/api/cravings/patterns")
+async def get_craving_patterns():
+    """Analyze craving patterns: by trigger, by hour, by day of week, intensity trends."""
+    records = craving_store.load()
+    now = _now()
+
+    if not records:
+        return {
+            "total_cravings": 0,
+            "resisted_count": 0,
+            "resist_rate": 0,
+            "by_trigger": [],
+            "by_hour": [],
+            "by_day": [],
+            "avg_intensity": 0,
+            "intensity_trend": [],
+            "top_trigger": None,
+            "worst_hour": None,
+            "insights": [],
+        }
+
+    total = len(records)
+    resisted = len([r for r in records if r.resisted])
+    resist_rate = round(resisted / total * 100, 1) if total > 0 else 0
+
+    # By trigger
+    trigger_counts: dict[str, dict] = {}
+    for r in records:
+        if r.trigger not in trigger_counts:
+            trigger_counts[r.trigger] = {"count": 0, "resisted": 0, "total_intensity": 0}
+        trigger_counts[r.trigger]["count"] += 1
+        trigger_counts[r.trigger]["total_intensity"] += r.intensity
+        if r.resisted:
+            trigger_counts[r.trigger]["resisted"] += 1
+
+    by_trigger = [
+        {
+            "trigger": t,
+            "count": d["count"],
+            "resisted": d["resisted"],
+            "resist_rate": round(d["resisted"] / d["count"] * 100, 1),
+            "avg_intensity": round(d["total_intensity"] / d["count"], 1),
+        }
+        for t, d in sorted(trigger_counts.items(), key=lambda x: x[1]["count"], reverse=True)
+    ]
+
+    # By hour of day
+    hour_counts = [0] * 24
+    for r in records:
+        ts = r.timestamp.astimezone(TZ) if r.timestamp.tzinfo else r.timestamp.replace(tzinfo=TZ)
+        hour_counts[ts.hour] += 1
+    by_hour = [{"hour": h, "count": c} for h, c in enumerate(hour_counts)]
+
+    # By day of week (0=Monday)
+    day_counts = [0] * 7
+    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    for r in records:
+        ts = r.timestamp.astimezone(TZ) if r.timestamp.tzinfo else r.timestamp.replace(tzinfo=TZ)
+        day_counts[ts.weekday()] += 1
+    by_day = [{"day": day_names[d], "count": c} for d, c in enumerate(day_counts)]
+
+    # Average intensity
+    avg_intensity = round(sum(r.intensity for r in records) / total, 1)
+
+    # Intensity trend (last 7 days, daily average)
+    intensity_trend = []
+    for days_ago in range(6, -1, -1):
+        day = (now - timedelta(days=days_ago)).date()
+        day_records = [
+            r for r in records
+            if (r.timestamp.astimezone(TZ) if r.timestamp.tzinfo else r.timestamp.replace(tzinfo=TZ)).date() == day
+        ]
+        if day_records:
+            avg = round(sum(r.intensity for r in day_records) / len(day_records), 1)
+            intensity_trend.append({"date": day.isoformat(), "avg_intensity": avg, "count": len(day_records)})
+        else:
+            intensity_trend.append({"date": day.isoformat(), "avg_intensity": 0, "count": 0})
+
+    # Insights
+    insights = []
+    top_trigger = by_trigger[0]["trigger"] if by_trigger else None
+    worst_hour = max(range(24), key=lambda h: hour_counts[h]) if any(hour_counts) else None
+
+    if top_trigger:
+        top_data = by_trigger[0]
+        insights.append(f"Your #1 trigger is '{top_trigger}' ({top_data['count']} times, {top_data['resist_rate']}% resisted)")
+    if worst_hour is not None and hour_counts[worst_hour] > 0:
+        insights.append(f"Peak craving hour: {worst_hour:02d}:00 ({hour_counts[worst_hour]} cravings)")
+    if resist_rate >= 80:
+        insights.append(f"Great resist rate: {resist_rate}%! You're in control.")
+    elif resist_rate >= 50:
+        insights.append(f"Resist rate: {resist_rate}%. Getting stronger!")
+    if avg_intensity > 0:
+        recent_week = [r for r in records if (now - r.timestamp.astimezone(TZ)).days < 7]
+        older = [r for r in records if (now - r.timestamp.astimezone(TZ)).days >= 7]
+        if recent_week and older:
+            recent_avg = sum(r.intensity for r in recent_week) / len(recent_week)
+            older_avg = sum(r.intensity for r in older) / len(older)
+            if recent_avg < older_avg:
+                insights.append(f"Cravings are getting weaker (avg {recent_avg:.1f} vs {older_avg:.1f} before)")
+
+    return {
+        "total_cravings": total,
+        "resisted_count": resisted,
+        "resist_rate": resist_rate,
+        "by_trigger": by_trigger,
+        "by_hour": by_hour,
+        "by_day": by_day,
+        "avg_intensity": avg_intensity,
+        "intensity_trend": intensity_trend,
+        "top_trigger": top_trigger,
+        "worst_hour": worst_hour,
+        "insights": insights,
+    }
+
+
+@app.get("/api/cravings/triggers")
+async def get_craving_triggers():
+    """Return the list of valid craving triggers."""
+    return {"triggers": CRAVING_TRIGGERS}
+
+
+# ---------------------------------------------------------------------------
+# Weekly Report Card
+# ---------------------------------------------------------------------------
+
+@app.get("/api/report/weekly")
+async def get_weekly_report():
+    """Detailed weekly report card with insights."""
+    engine = _get_engine()
+    config = config_store.load()
+    entries = entry_store.load()
+    now = _now()
+
+    # Current week boundaries
+    week_start = engine.current_week_start(now)
+    week_end = week_start + timedelta(days=7)
+    today = now.date()
+
+    # Previous week boundaries
+    prev_week_start = week_start - timedelta(weeks=1)
+    prev_week_end = week_start
+
+    # Entries for current and previous week
+    this_week_entries = [
+        e for e in entries
+        if week_start <= e.timestamp.astimezone(TZ) < week_end
+    ]
+    prev_week_entries = [
+        e for e in entries
+        if prev_week_start <= e.timestamp.astimezone(TZ) < prev_week_end
+    ]
+
+    # --- Daily breakdown for this week ---
+    daily_breakdown = []
+    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    best_day = None
+    best_day_count = float('inf')
+    worst_day = None
+    worst_day_count = -1
+
+    for i in range(7):
+        day_date = (week_start + timedelta(days=i)).date()
+        if day_date > today:
+            break
+
+        day_entries = [
+            e for e in this_week_entries
+            if e.timestamp.astimezone(TZ).date() == day_date
+        ]
+        regular = len([e for e in day_entries if not e.is_bonus])
+        bonus = len([e for e in day_entries if e.is_bonus])
+        day_dt = datetime.combine(day_date, datetime.min.time(), tzinfo=TZ)
+        allowance = engine.daily_allowance(day_dt)
+        under_budget = allowance - regular
+
+        daily_breakdown.append({
+            "date": day_date.isoformat(),
+            "day_name": day_names[i],
+            "smoked": regular,
+            "bonus": bonus,
+            "allowance": allowance,
+            "under_budget": under_budget,
+        })
+
+        if regular < best_day_count:
+            best_day_count = regular
+            best_day = day_names[i]
+        if regular > worst_day_count:
+            worst_day_count = regular
+            worst_day = day_names[i]
+
+    # --- Totals ---
+    this_week_regular = len([e for e in this_week_entries if not e.is_bonus])
+    this_week_bonus = len([e for e in this_week_entries if e.is_bonus])
+    prev_week_regular = len([e for e in prev_week_entries if not e.is_bonus])
+
+    # Days elapsed this week
+    days_elapsed = min(7, (today - week_start.date()).days + 1)
+    days_elapsed_prev = 7
+
+    # Daily averages
+    avg_this_week = round(this_week_regular / days_elapsed, 1) if days_elapsed > 0 else 0
+    avg_prev_week = round(prev_week_regular / days_elapsed_prev, 1) if days_elapsed_prev > 0 else 0
+    trend = round(avg_this_week - avg_prev_week, 1)
+
+    # --- Longest gap between cigarettes this week ---
+    week_non_bonus = sorted(
+        [e for e in this_week_entries if not e.is_bonus],
+        key=lambda e: e.timestamp,
+    )
+    longest_gap_hours = 0.0
+    if len(week_non_bonus) >= 2:
+        for j in range(1, len(week_non_bonus)):
+            gap = (week_non_bonus[j].timestamp.astimezone(TZ) - week_non_bonus[j-1].timestamp.astimezone(TZ)).total_seconds() / 3600
+            if gap > longest_gap_hours:
+                longest_gap_hours = gap
+    elif len(week_non_bonus) == 1:
+        # Gap from start of week to first entry, or from last entry to now
+        gap_to_now = (now - week_non_bonus[0].timestamp.astimezone(TZ)).total_seconds() / 3600
+        gap_from_start = (week_non_bonus[0].timestamp.astimezone(TZ) - week_start).total_seconds() / 3600
+        longest_gap_hours = max(gap_to_now, gap_from_start)
+
+    # --- Week allowance total ---
+    week_allowance_total = engine.daily_allowance(now) * days_elapsed
+    total_under_budget = week_allowance_total - this_week_regular
+
+    # --- Achievements ---
+    achievements = []
+    if total_under_budget > 0:
+        achievements.append(f"🏆 {total_under_budget} under budget this week")
+    if best_day_count == 0 and days_elapsed > 0:
+        achievements.append(f"⭐ Zero-cigarette day: {best_day}!")
+    if longest_gap_hours >= 12:
+        achievements.append(f"⏱️ Longest gap: {longest_gap_hours:.1f}h — great restraint!")
+    if trend < 0:
+        achievements.append(f"📉 Averaging {abs(trend):.1f} fewer/day than last week")
+    if this_week_bonus == 0 and days_elapsed >= 3:
+        achievements.append("🎁 No bonus used this week (so far)")
+
+    # --- Comparison to previous week ---
+    comparison = {
+        "this_week_total": this_week_regular,
+        "prev_week_total": prev_week_regular,
+        "difference": this_week_regular - prev_week_regular,
+        "this_week_avg": avg_this_week,
+        "prev_week_avg": avg_prev_week,
+        "trend": "improving" if trend < 0 else "same" if trend == 0 else "higher",
+    }
+
+    # --- Grade ---
+    if days_elapsed >= 1:
+        compliance = total_under_budget / (week_allowance_total or 1)
+        if compliance >= 0.2:
+            grade = "A"
+        elif compliance >= 0:
+            grade = "B"
+        elif compliance >= -0.1:
+            grade = "C"
+        else:
+            grade = "D"
+    else:
+        grade = "—"
+
+    return {
+        "week_index": engine.current_week_index(now) + 1,
+        "week_start": week_start.date().isoformat(),
+        "days_elapsed": days_elapsed,
+        "grade": grade,
+        "daily_breakdown": daily_breakdown,
+        "totals": {
+            "smoked": this_week_regular,
+            "bonus_used": this_week_bonus,
+            "allowance": week_allowance_total,
+            "under_budget": total_under_budget,
+        },
+        "longest_gap_hours": round(longest_gap_hours, 1),
+        "best_day": best_day,
+        "worst_day": worst_day,
+        "avg_per_day": avg_this_week,
+        "comparison": comparison,
+        "achievements": achievements,
+    }
 
 
 # ---------------------------------------------------------------------------

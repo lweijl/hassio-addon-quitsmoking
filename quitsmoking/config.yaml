@@ -1,5 +1,5 @@
 name: Quit Smoking
-version: 1.2.4
+version: 1.3.0
 slug: quitsmoking
 description: Track your smoking cessation journey with interval/daily scheduling, progress stats, and notifications
 url: https://github.com/lweijl/hassio-addon-quitsmoking

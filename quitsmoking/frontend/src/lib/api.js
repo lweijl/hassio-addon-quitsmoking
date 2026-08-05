@@ -138,3 +138,42 @@ export function backfillDays(days) {
 export function getProgress() {
   return request('/progress')
 }
+
+/**
+ * Get health timeline (milestones based on time since last smoke)
+ */
+export function getHealthTimeline() {
+  return request('/health-timeline')
+}
+
+/**
+ * Log a craving event
+ * @param {object} entry - {trigger, intensity, notes, resisted}
+ */
+export function logCraving(entry) {
+  return request('/cravings', {
+    method: 'POST',
+    body: JSON.stringify(entry)
+  })
+}
+
+/**
+ * Get craving patterns analysis
+ */
+export function getCravingPatterns() {
+  return request('/cravings/patterns')
+}
+
+/**
+ * Get list of valid craving triggers
+ */
+export function getCravingTriggers() {
+  return request('/cravings/triggers')
+}
+
+/**
+ * Get detailed weekly report card
+ */
+export function getWeeklyReport() {
+  return request('/report/weekly')
+}
