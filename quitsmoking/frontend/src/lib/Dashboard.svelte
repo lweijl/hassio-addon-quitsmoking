@@ -25,15 +25,15 @@
   })
 
   function updateCountdown() {
-    if (!status || !status.next_allowed_at) {
-      canSmoke = true
+    if (!status || !status.next_allowed_time) {
+      canSmoke = status?.can_smoke ?? true
       countdownText = 'Available now'
       progressPercent = 100
       return
     }
 
     const now = Date.now()
-    const nextAllowed = new Date(status.next_allowed_at).getTime()
+    const nextAllowed = new Date(status.next_allowed_time).getTime()
     const diff = nextAllowed - now
 
     if (diff <= 0) {
@@ -51,8 +51,8 @@
     countdownText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 
     // Progress: how far through the interval we are
-    if (status.interval_seconds) {
-      const totalMs = status.interval_seconds * 1000
+    if (status.interval_hours) {
+      const totalMs = status.interval_hours * 3600000
       const elapsed = totalMs - diff
       progressPercent = Math.min(100, Math.max(0, (elapsed / totalMs) * 100))
     } else {
@@ -143,7 +143,7 @@
       {:else if status.mode === 'daily'}
         <p class="countdown-label">Today's allowance</p>
         <p class="daily-count">
-          <span class="count-current">{status.today_count ?? 0}</span>
+          <span class="count-current">{status.smoked_today ?? 0}</span>
           <span class="count-sep">/</span>
           <span class="count-total">{status.daily_allowance ?? 0}</span>
         </p>
@@ -152,7 +152,7 @@
             {#each status.schedule_times as time, i}
               <div
                 class="dot"
-                class:filled={i < (status.today_count ?? 0)}
+                class:filled={i < (status.smoked_today ?? 0)}
                 title={time}
               ></div>
             {/each}
@@ -162,7 +162,7 @@
         <p class="countdown-label">You're free!</p>
         <p class="countdown available">🎉</p>
         <p style="text-align:center; color: var(--color-success); font-weight: 600;">
-          {status.days_smoke_free ?? 0} days smoke-free
+          {status.days_since_start ?? 0} days smoke-free
         </p>
       {/if}
     </div>
@@ -179,14 +179,14 @@
         🚬 Log Cigarette
       </button>
 
-      {#if (status.bonus_remaining ?? 0) > 0}
+      {#if (status.remaining_bonus ?? 0) > 0}
         <button
           class="btn btn-bonus"
           onclick={() => handleLog(true)}
           disabled={loading}
-          aria-label="Use bonus cigarette, {status.bonus_remaining} remaining"
+          aria-label="Use bonus cigarette, {status.remaining_bonus} remaining"
         >
-          🎁 Use Bonus ({status.bonus_remaining})
+          🎁 Use Bonus ({status.remaining_bonus})
         </button>
       {/if}
 
@@ -213,21 +213,21 @@
         <div class="stat-label">Saved</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{status.days_on_plan ?? 0}</div>
+        <div class="stat-value">{status.days_since_start ?? 0}</div>
         <div class="stat-label">Days</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{status.days_until_free ?? '—'}</div>
+        <div class="stat-value">{status.days_until_quit ?? '—'}</div>
         <div class="stat-label">Until Free</div>
       </div>
     </div>
 
     <!-- Bonus remaining -->
-    {#if status.bonus_remaining != null}
+    {#if status.remaining_bonus != null}
       <div class="card bonus-card">
         <span class="bonus-icon">🎁</span>
         <span class="bonus-text">
-          {status.bonus_remaining} bonus cigarette{status.bonus_remaining !== 1 ? 's' : ''} remaining this week
+          {status.remaining_bonus} bonus cigarette{status.remaining_bonus !== 1 ? 's' : ''} remaining this week
         </span>
       </div>
     {/if}
