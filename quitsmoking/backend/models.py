@@ -17,6 +17,7 @@ class CigaretteEntry(BaseModel):
 
 class LogRequest(BaseModel):
     is_bonus: bool = False
+    timestamp: Optional[datetime] = None  # Override to log for a past date/time
 
 
 class WeekScheduleModel(BaseModel):

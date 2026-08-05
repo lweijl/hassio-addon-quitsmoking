@@ -4,6 +4,13 @@
 
 ### New Features
 - **Configurable notification targets**: Choose which devices receive notifications instead of broadcasting to all. Configure a list of specific services (e.g., `notify.mobile_app_iphone`) in the addon settings.
+- **Log for past date**: New "📅 Log for a past date" button on the dashboard lets you retroactively log cigarettes (including bonus) for yesterday or earlier.
+- **Test notification endpoint**: `POST /api/notifications/test` sends a test notification to verify your config.
+- **Debug endpoint**: `GET /api/debug` shows raw computed values for troubleshooting.
+
+### Bug Fixes
+- **Countdown after logging (interval mode)**: Timestamp was not timezone-normalized, causing "Available now" to persist after logging.
+- **Countdown after logging (daily mode)**: Now scans forward to find the next *future* scheduled slot instead of only checking one.
 
 ### Configuration
 - New `notify_services` option: list of HA notify services to target.

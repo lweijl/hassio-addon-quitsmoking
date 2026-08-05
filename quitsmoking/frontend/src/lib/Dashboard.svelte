@@ -11,6 +11,11 @@
   let showUndo = $state(false)
   let loading = $state(false)
   let tickInterval = null
+  let showPastLog = $state(false)
+  let pastDate = $state('')
+  let pastTime = $state('12:00')
+  let pastIsBonus = $state(false)
+  let pastLogMessage = $state('')
 
   $effect(() => {
     if (status) {
@@ -50,9 +55,14 @@
 
     countdownText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 
-    // Progress: how far through the interval we are
+    // Progress: how far through the wait we are
     if (status.interval_hours) {
       const totalMs = status.interval_hours * 3600000
+      const elapsed = totalMs - diff
+      progressPercent = Math.min(100, Math.max(0, (elapsed / totalMs) * 100))
+    } else if (status.time_until_next_seconds) {
+      // Daily mode: use the original time_until_next_seconds as total duration
+      const totalMs = status.time_until_next_seconds * 1000
       const elapsed = totalMs - diff
       progressPercent = Math.min(100, Math.max(0, (elapsed / totalMs) * 100))
     } else {
@@ -69,10 +79,13 @@
     }
     loading = true
     try {
-      await logCigarette(isBonus)
+      const newStatus = await logCigarette(isBonus)
+      // Use the response directly — avoids stale cache from GET /status
+      status = newStatus
       showUndo = true
       setTimeout(() => { showUndo = false }, 10000)
-      await onRefresh()
+      // Also trigger a background refresh for good measure
+      onRefresh()
     } catch (e) {
       console.error('Failed to log:', e)
     } finally {
@@ -103,6 +116,30 @@
     "Your future self will thank you 🌟",
     "Breaking free, one breath at a time 🌬️"
   ]
+
+  function initPastDate() {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    pastDate = yesterday.toISOString().split('T')[0]
+    showPastLog = true
+  }
+
+  async function handlePastLog() {
+    if (!pastDate || !pastTime || loading) return
+    loading = true
+    pastLogMessage = ''
+    try {
+      const timestamp = `${pastDate}T${pastTime}:00`
+      await logCigarette(pastIsBonus, timestamp)
+      pastLogMessage = `✓ Logged for ${pastDate} at ${pastTime}${pastIsBonus ? ' (bonus)' : ''}`
+      pastIsBonus = false
+      await onRefresh()
+    } catch (e) {
+      pastLogMessage = `⚠️ ${e.message}`
+    } finally {
+      loading = false
+    }
+  }
 
   function getMotivation() {
     const day = Math.floor(Date.now() / 86400000)
@@ -147,6 +184,19 @@
           <span class="count-sep">/</span>
           <span class="count-total">{status.daily_allowance ?? 0}</span>
         </p>
+        {#if !canSmoke && (status.remaining_today ?? 0) > 0}
+          <p class="next-scheduled-label">Next scheduled in</p>
+          <p class="countdown">{countdownText}</p>
+          <div class="progress-bar">
+            <div
+              class="progress-bar-fill"
+              style="width: {progressPercent}%; background: var(--color-accent);"
+            ></div>
+          </div>
+        {:else if (status.remaining_today ?? 0) === 0}
+          <p class="next-scheduled-label">Done for today</p>
+          <p class="countdown available">✓</p>
+        {/if}
         {#if status.schedule_times && status.schedule_times.length > 0}
           <div class="dots" aria-label="Schedule times">
             {#each status.schedule_times as time, i}
@@ -202,7 +252,7 @@
         class="btn btn-primary log-btn"
         class:shake={shaking}
         onclick={() => handleLog(false)}
-        disabled={loading || status.mode === 'quit'}
+        disabled={loading || status.mode === 'quit' || (status.remaining_today ?? 0) === 0}
         aria-label="Log a cigarette"
       >
         🚬 Log Cigarette
@@ -250,6 +300,60 @@
         <div class="stat-label">Until Free</div>
       </div>
     </div>
+
+    <!-- Log for past date -->
+    {#if !showPastLog}
+      <button
+        class="btn btn-secondary past-log-toggle"
+        onclick={initPastDate}
+        aria-label="Log a cigarette for a past date"
+      >
+        📅 Log for a past date
+      </button>
+    {:else}
+      <div class="card past-log-card fade-in">
+        <p class="past-log-title">📅 Log for past date</p>
+        <div class="past-log-form">
+          <div class="past-log-row">
+            <input
+              type="date"
+              bind:value={pastDate}
+              max={new Date().toISOString().split('T')[0]}
+              aria-label="Date"
+            />
+            <input
+              type="time"
+              bind:value={pastTime}
+              aria-label="Time"
+            />
+          </div>
+          <div class="past-log-row">
+            <label class="past-log-bonus">
+              <input type="checkbox" bind:checked={pastIsBonus} />
+              🎁 Bonus
+            </label>
+            <button
+              class="btn btn-primary past-log-submit"
+              onclick={handlePastLog}
+              disabled={loading || !pastDate}
+              aria-label="Log cigarette for selected date"
+            >
+              🚬 Log
+            </button>
+            <button
+              class="btn btn-secondary"
+              onclick={() => { showPastLog = false; pastLogMessage = '' }}
+              aria-label="Cancel past logging"
+            >
+              ✕
+            </button>
+          </div>
+          {#if pastLogMessage}
+            <p class="past-log-message">{pastLogMessage}</p>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <!-- Bonus remaining -->
     {#if status.remaining_bonus != null}
@@ -311,6 +415,15 @@
     font-size: 14px;
     color: var(--color-secondary-text);
     margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .next-scheduled-label {
+    font-size: 12px;
+    color: var(--color-secondary-text);
+    margin-top: 12px;
+    margin-bottom: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -457,5 +570,71 @@
   @keyframes pulse {
     0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(100, 210, 255, 0.4); }
     50% { transform: scale(1.15); box-shadow: 0 0 10px 4px rgba(100, 210, 255, 0.2); }
+  }
+
+  /* Past log section */
+  .past-log-toggle {
+    font-size: 13px;
+    padding: 10px;
+    opacity: 0.7;
+  }
+
+  .past-log-card {
+    padding: 16px;
+  }
+
+  .past-log-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 12px;
+  }
+
+  .past-log-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .past-log-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .past-log-row input[type="date"],
+  .past-log-row input[type="time"] {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-surface-elevated);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 14px;
+  }
+
+  .past-log-bonus {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--color-secondary-text);
+    cursor: pointer;
+  }
+
+  .past-log-bonus input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+
+  .past-log-submit {
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+
+  .past-log-message {
+    font-size: 13px;
+    color: var(--color-success);
+    margin-top: 4px;
   }
 </style>

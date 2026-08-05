@@ -40,17 +40,21 @@ async function request(path, options = {}) {
  * Get current smoking status (mode, next allowed, counts, etc.)
  */
 export function getStatus() {
-  return request('/status')
+  // Cache-bust to avoid stale responses through HA ingress proxy
+  return request(`/status?_=${Date.now()}`)
 }
 
 /**
  * Log a cigarette
  * @param {boolean} isBonus - Whether this uses a bonus allowance
+ * @param {string|null} timestamp - Optional ISO timestamp to log for a past date
  */
-export function logCigarette(isBonus = false) {
+export function logCigarette(isBonus = false, timestamp = null) {
+  const body = { is_bonus: isBonus }
+  if (timestamp) body.timestamp = timestamp
   return request('/log', {
     method: 'POST',
-    body: JSON.stringify({ is_bonus: isBonus })
+    body: JSON.stringify(body)
   })
 }
 

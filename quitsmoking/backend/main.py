@@ -344,14 +344,21 @@ async def log_cigarette(req: LogRequest):
     engine = _get_engine()
     now = _now()
 
+    # Allow logging for a past date/time
+    entry_time = req.timestamp.astimezone(TZ) if req.timestamp else now
+
     entry = CigaretteEntry(
         id=uuid4(),
-        timestamp=now,
+        timestamp=entry_time,
         is_bonus=req.is_bonus,
     )
     entry_store.add_entry(entry)
 
+    # Re-sort entries by timestamp (in case backfilling)
     entries = entry_store.load()
+    entries.sort(key=lambda e: e.timestamp)
+    entry_store.save(entries)
+
     status = _build_status(engine, entries)
 
     # Send notification
