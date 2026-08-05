@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.2.1
+
+### New Features
+- **Configurable notification targets**: Choose which devices receive notifications instead of broadcasting to all. Configure a list of specific services (e.g., `notify.mobile_app_iphone`) in the addon settings.
+
+### Configuration
+- New `notify_services` option: list of HA notify services to target.
+- Legacy `notify_service` (single) still works as fallback.
+- If neither is set, falls back to `notify.notify` (broadcast to all).
+
+## 1.2.0
+
+### Bug Fixes
+- **Timer fix**: "Next cigarette in" no longer always shows "Available now" after logging. Fixed HTTP caching issue (added no-cache headers + cache-busting) and made frontend use POST /api/log response directly.
+- **Daily mode countdown**: Daily mode now shows countdown to next scheduled smoke time instead of always "available now". After logging at slot 1, you'll see a countdown to slot 2.
+
+### New Features
+- **Actionable notifications**: All notifications now include tappable buttons:
+  - "⏰ Scheduled smoke time" → [🚬 Log it] [💪 Skip it] [📱 Open]
+  - "✅ Interval elapsed" → [🚬 Log it] [💪 Skip it] [📱 Open]
+  - "⚠️ Daily limit reached" → [🎁 Use Bonus] [📊 Progress]
+  - "☀️ Good morning" → [📱 Open] [📊 Progress]
+- **Quick-log from notification**: Tap "Log it" to log a cigarette without opening the app.
+- **Skip/resist craving**: Tap "Skip it" to get an encouragement message with your stats.
+- **Evening check-in (21:00)**: Daily summary notification — congratulates if under budget, acknowledges if on track.
+- **Notification tags**: Notifications use tags so newer ones replace older ones (no spam).
+
+### Improvements
+- **Better notification content**: Log notifications now show next allowed time, remaining count, and cumulative avoided count.
+- **Log button disabled when at limit**: In daily mode, the log button is disabled when remaining = 0.
+
 ## 1.1.0
 
 ### New Features

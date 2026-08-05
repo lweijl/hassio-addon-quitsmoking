@@ -6,7 +6,15 @@ INGRESS_ENTRY=$(bashio::addon.ingress_entry)
 export INGRESS_PATH="${INGRESS_ENTRY}"
 
 # Read options
-export NOTIFY_SERVICE=$(bashio::config 'notify_service')
+export NOTIFY_SERVICE=$(bashio::config 'notify_service' || true)
+
+# Read notify_services list and join as comma-separated
+NOTIFY_SERVICES_JSON=$(bashio::config 'notify_services')
+if [ "$NOTIFY_SERVICES_JSON" != "null" ] && [ -n "$NOTIFY_SERVICES_JSON" ]; then
+    export NOTIFY_SERVICES=$(bashio::config 'notify_services | join(",")')
+else
+    export NOTIFY_SERVICES=""
+fi
 
 # Data directory for persistence
 export DATA_DIR="/config/quitsmoking"
@@ -14,7 +22,7 @@ mkdir -p "$DATA_DIR"
 
 bashio::log.info "Starting Quit Smoking add-on..."
 bashio::log.info "Ingress path: ${INGRESS_PATH}"
-bashio::log.info "Notify service: ${NOTIFY_SERVICE}"
+bashio::log.info "Notify services: ${NOTIFY_SERVICES:-${NOTIFY_SERVICE:-notify (broadcast)}}"
 bashio::log.info "Data directory: ${DATA_DIR}"
 
 cd /app
