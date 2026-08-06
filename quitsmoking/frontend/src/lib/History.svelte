@@ -42,16 +42,35 @@
     if (!historyData || !canvasEl) return
 
     const days = historyData.days || []
-    const sliced = range === 0 ? days : days.slice(-range)
 
-    const labels = sliced.map(d => {
-      const date = new Date(d.date)
-      return date.toLocaleDateString('en', { weekday: 'short', day: 'numeric' })
-    })
+    let labels, regularData, bonusData, allowanceData
 
-    const regularData = sliced.map(d => (d.count ?? 0) - (d.bonus_count ?? 0))
-    const bonusData = sliced.map(d => d.bonus_count ?? 0)
-    const allowanceData = sliced.map(d => d.allowance ?? 0)
+    if (range === 0) {
+      // "All" view: aggregate per week
+      const weeks = []
+      for (let i = 0; i < days.length; i += 7) {
+        const weekDays = days.slice(i, i + 7)
+        const weekNum = Math.floor(i / 7) + 1
+        const regular = weekDays.reduce((sum, d) => sum + (d.count ?? 0) - (d.bonus_count ?? 0), 0)
+        const bonus = weekDays.reduce((sum, d) => sum + (d.bonus_count ?? 0), 0)
+        const allowance = weekDays.reduce((sum, d) => sum + (d.allowance ?? 0), 0)
+        weeks.push({ label: `W${weekNum}`, regular, bonus, allowance })
+      }
+      labels = weeks.map(w => w.label)
+      regularData = weeks.map(w => w.regular)
+      bonusData = weeks.map(w => w.bonus)
+      allowanceData = weeks.map(w => w.allowance)
+    } else {
+      // 7d / 14d: daily bars
+      const sliced = days.slice(-range)
+      labels = sliced.map(d => {
+        const date = new Date(d.date)
+        return date.toLocaleDateString('en', { weekday: 'short', day: 'numeric' })
+      })
+      regularData = sliced.map(d => (d.count ?? 0) - (d.bonus_count ?? 0))
+      bonusData = sliced.map(d => d.bonus_count ?? 0)
+      allowanceData = sliced.map(d => d.allowance ?? 0)
+    }
 
     if (chart) chart.destroy()
 

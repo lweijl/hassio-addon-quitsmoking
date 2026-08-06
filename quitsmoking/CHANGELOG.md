@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+
+### Improvements
+- **History "All" view shows per-week**: Instead of 50+ daily bars, the "All" range now aggregates by week (W1, W2, W3...) showing weekly totals for smoked, bonus, and allowance. 7d and 14d views remain daily.
+
 ## 1.4.0
 
 ### New Features
