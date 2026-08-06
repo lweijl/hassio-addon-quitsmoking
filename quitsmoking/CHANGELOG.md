@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.9
+
+### Fixes
+- **Notification URI fixed**: Path is now `/<slug>` (e.g., `/472f365d_quitsmoking`) matching the actual HA ingress URL format. Previous attempts with `/hassio/ingress/` and `/hassio_ingress/` both 404'd.
+
+## 1.3.8
+
+### Improvements
+- **Version shown in UI**: Tiny version number displayed as superscript next to the app title.
+
 ## 1.3.7
 
 ### New
