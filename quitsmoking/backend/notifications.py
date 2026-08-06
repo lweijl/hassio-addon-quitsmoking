@@ -175,8 +175,6 @@ async def send_notification(
         notification_data["actions"] = actions
     if tag:
         notification_data["tag"] = tag
-        # Allow replacing previous notification with same tag
-        notification_data["notification_id"] = tag
     # Note: do NOT set "url" in data — on iOS it can override action URI behavior.
     # The action buttons handle navigation via their own "uri" key.
     if notification_data:

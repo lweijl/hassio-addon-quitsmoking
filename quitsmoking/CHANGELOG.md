@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.13
+
+### Fixes
+- **Remove `notification_id` from payload**: Was not a standard iOS field and may have been interfering with action URI handling. Only `tag` is used now for notification grouping/replacement.
+- **Test notification returns payload**: Debug info shows exact JSON sent for comparison with working Developer Tools calls.
+
 ## 1.3.12
 
 ### Fixes

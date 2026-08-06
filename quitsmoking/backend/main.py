@@ -1286,20 +1286,34 @@ async def get_pending_notifications():
 async def test_notification():
     """Send a test notification with action buttons to verify navigation works."""
     from .notifications import NOTIFY_SERVICES, _addon_uri
+    actions = [
+        {"action": "URI", "title": "📱 Open App", "uri": _addon_uri("")},
+        {"action": "URI", "title": "📊 Progress", "uri": _addon_uri("")},
+        Actions.stay_strong(),
+    ]
     result = await send_notification(
         "🧪 Test Notification",
         "Tap the buttons below to test navigation. Nothing will be logged.",
-        actions=[
-            {"action": "URI", "title": "📱 Open App", "uri": _addon_uri("")},
-            {"action": "URI", "title": "📊 Progress", "uri": _addon_uri("")},
-            Actions.stay_strong(),
-        ],
+        actions=actions,
         tag="test",
     )
+
+    # Return the exact payload we would send (for debugging)
+    debug_payload = {
+        "title": "🧪 Test Notification",
+        "message": "Tap the buttons below to test navigation. Nothing will be logged.",
+        "data": {
+            "actions": actions,
+            "tag": "test",
+            "notification_id": "test",
+        },
+    }
+
     return {
         "status": "ok" if result else "failed",
         "services": NOTIFY_SERVICES,
-        "uri_format": _addon_uri("/"),
+        "uri_format": _addon_uri(""),
+        "payload_sent": debug_payload,
         "sent_at": datetime.now(TZ).isoformat(),
     }
 
