@@ -72,11 +72,6 @@
 
   async function handleLog(isBonus = false) {
     if (loading) return
-    if (!isBonus && !canSmoke) {
-      shaking = true
-      setTimeout(() => { shaking = false }, 500)
-      return
-    }
     loading = true
     try {
       const newStatus = await logCigarette(isBonus)
@@ -252,10 +247,16 @@
         class="btn btn-primary log-btn"
         class:shake={shaking}
         onclick={() => handleLog(false)}
-        disabled={loading || status.mode === 'quit' || (status.remaining_today ?? 0) === 0}
+        disabled={loading || status.mode === 'quit'}
         aria-label="Log a cigarette"
       >
-        🚬 Log Cigarette
+        {#if (status.remaining_today ?? 1) === 0}
+          🚬 Log (over limit)
+        {:else if !canSmoke}
+          🚬 Log (early)
+        {:else}
+          🚬 Log Cigarette
+        {/if}
       </button>
 
       {#if (status.remaining_bonus ?? 0) > 0}

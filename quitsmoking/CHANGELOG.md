@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.3
+
+### Fixes
+- **Log button always works**: You can now always log a cigarette, even if the timer hasn't elapsed or you're over your daily limit. The app tracks reality, not rules.
+  - Button shows "🚬 Log (early)" if timer is still running.
+  - Button shows "🚬 Log (over limit)" if daily allowance is used up.
+  - Never blocks you from recording what actually happened.
+
 ## 1.3.2
 
 ### Improvements
