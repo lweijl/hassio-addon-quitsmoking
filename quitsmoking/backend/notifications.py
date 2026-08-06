@@ -76,8 +76,8 @@ class Actions:
     """Pre-built action sets for different notification scenarios.
 
     URI actions use /<slug> which the companion app navigates to correctly.
-    For actions that trigger API calls, we use hash fragments (#action=log)
-    which are client-side only and don't interfere with HA's panel routing.
+    For actions that trigger API calls, we use query params (?action=log)
+    which get passed through to the ingress iframe.
     """
 
     @staticmethod
@@ -86,7 +86,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "🚬 Log it",
-            "uri": _addon_uri("#action=log"),
+            "uri": _addon_uri("?action=log"),
         }
 
     @staticmethod
@@ -95,7 +95,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "🎁 Use Bonus",
-            "uri": _addon_uri("#action=log_bonus"),
+            "uri": _addon_uri("?action=log_bonus"),
         }
 
     @staticmethod
@@ -104,7 +104,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "💪 Skip it",
-            "uri": _addon_uri("#action=skip"),
+            "uri": _addon_uri("?action=skip"),
         }
 
     @staticmethod

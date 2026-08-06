@@ -1288,7 +1288,7 @@ async def test_notification():
     from .notifications import NOTIFY_SERVICES, _addon_uri
     actions = [
         {"action": "URI", "title": "📱 Open App", "uri": _addon_uri("")},
-        {"action": "URI", "title": "🚬 Log (test)", "uri": _addon_uri("#action=test")},
+        {"action": "URI", "title": "🚬 Log (test)", "uri": _addon_uri("?action=test")},
         Actions.stay_strong(),
     ]
     result = await send_notification(
