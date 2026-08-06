@@ -75,36 +75,33 @@ def _addon_uri(path: str = "") -> str:
 class Actions:
     """Pre-built action sets for different notification scenarios.
 
-    URI actions use /<slug> which the companion app navigates to correctly.
-    For actions that trigger API calls, we use query params (?action=log)
-    which get passed through to the ingress iframe.
+    - Open/Progress: URI actions that open the addon panel in the companion app.
+    - Log/Skip/Bonus: Non-URI actions that fire HA events. The addon listens
+      for these via websocket and handles them in the background (no app opening).
     """
 
     @staticmethod
     def log_cigarette() -> dict:
-        """Action button that opens addon and auto-logs a cigarette."""
+        """Action button that logs a cigarette in the background."""
         return {
-            "action": "URI",
+            "action": "QS_LOG",
             "title": "🚬 Log it",
-            "uri": _addon_uri("?action=log"),
         }
 
     @staticmethod
     def log_bonus() -> dict:
-        """Action button that opens addon and auto-logs a bonus."""
+        """Action button that logs a bonus cigarette in the background."""
         return {
-            "action": "URI",
+            "action": "QS_LOG_BONUS",
             "title": "🎁 Use Bonus",
-            "uri": _addon_uri("?action=log_bonus"),
         }
 
     @staticmethod
     def skip() -> dict:
-        """Action button that opens addon and records a skip."""
+        """Action button that records a skip in the background."""
         return {
-            "action": "URI",
+            "action": "QS_SKIP",
             "title": "💪 Skip it",
-            "uri": _addon_uri("?action=skip"),
         }
 
     @staticmethod

@@ -47,9 +47,6 @@
       action = hashParams.get('action')
     }
 
-    // Debug: show what the frontend sees (temporary)
-    actionMessage = `DEBUG: href=${window.location.href} search=${window.location.search} hash=${window.location.hash} action=${action || 'none'}`
-
     if (!action) return
 
     // Clear the action from URL (so refresh doesn't re-trigger)
@@ -94,7 +91,7 @@
 
 <div class="container">
   <header class="app-header">
-    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.17</span></h1>
+    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.4.0</span></h1>
   </header>
 
   <nav class="tab-nav" role="tablist" aria-label="Main navigation">

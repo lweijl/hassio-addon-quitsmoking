@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.4.0
+
+### New Features
+- **Background notification actions**: "🚬 Log it", "🎁 Use Bonus", and "💪 Skip it" now work entirely in the background — no app opening needed. Tap the button on the notification and it's done. You'll get a confirmation notification back.
+- **Websocket event listener**: The addon connects to HA's websocket API and subscribes to `mobile_app_notification_action` events. Handles notification button taps directly without needing any HA automations or configuration.yaml changes.
+- **"📱 Open App" still opens the addon** in the companion app via the panel path.
+
+### How it works
+When you tap a notification action button:
+1. The companion app fires a `mobile_app_notification_action` event on HA's event bus
+2. The addon receives the event via its websocket connection
+3. The addon performs the action (log/skip) and sends a confirmation notification
+
+No automations needed. No configuration.yaml changes. It all happens from within the addon.
+
+### Handled events
+| Event | Action |
+|-------|--------|
+| `QS_LOG` | Logs a regular cigarette, sends confirmation |
+| `QS_LOG_BONUS` | Logs a bonus cigarette, sends confirmation |
+| `QS_SKIP` | Records a skip, sends encouragement message |
+| `QS_TEST` | Sends confirmation without logging (for testing) |
+| `QS_STAY_STRONG` | No-op (acknowledgment, just dismisses) |
+
+### Fixes
+- Removed debug URL banner from previous version
+
 ## 1.3.16
 
 ### Improvements
