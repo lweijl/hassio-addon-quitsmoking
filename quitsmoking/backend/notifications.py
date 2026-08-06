@@ -59,11 +59,10 @@ NOTIFY_SERVICES = _parse_notify_services()
 def _addon_uri(path: str = "") -> str:
     """Build a URI that opens the addon's ingress UI inside the HA companion app.
 
-    The HA frontend routes ingress addons at /hassio_ingress/<slug>
-    (underscore between hassio and ingress).
+    The ingress path is just /<slug> on the HA instance.
     """
     slug = os.environ.get("ADDON_SLUG", "472f365d_quitsmoking")
-    return f"/hassio_ingress/{slug}{path}"
+    return f"/{slug}{path}"
 
 
 # ---------------------------------------------------------------------------
