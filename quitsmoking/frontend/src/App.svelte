@@ -80,7 +80,7 @@
 
 <div class="container">
   <header class="app-header">
-    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.9</span></h1>
+    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.10</span></h1>
   </header>
 
   <nav class="tab-nav" role="tablist" aria-label="Main navigation">

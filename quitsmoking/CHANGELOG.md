@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.10
+
+### Fixes
+- **Notification URI (attempt 4)**: Using `/hassio/addon/<slug>/ingress` — the HA frontend route that the sidebar and "OPEN WEB UI" button use internally.
+
 ## 1.3.9
 
 ### Fixes
