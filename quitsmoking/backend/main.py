@@ -1305,7 +1305,6 @@ async def test_notification():
         "data": {
             "actions": actions,
             "tag": "test",
-            "notification_id": "test",
         },
     }
 

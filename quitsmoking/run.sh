@@ -6,7 +6,12 @@ INGRESS_ENTRY=$(bashio::addon.ingress_entry)
 export INGRESS_PATH="${INGRESS_ENTRY}"
 
 # Addon slug for companion app navigation
-export ADDON_SLUG=$(bashio::addon.slug)
+# Try bashio first, fall back to HOSTNAME (set by HA to addon slug)
+ADDON_SLUG=$(bashio::addon.slug 2>/dev/null || echo "")
+if [ -z "$ADDON_SLUG" ]; then
+    ADDON_SLUG="${HOSTNAME:-472f365d_quitsmoking}"
+fi
+export ADDON_SLUG
 
 # Read options
 export NOTIFY_SERVICE=$(bashio::config 'notify_service' || true)
@@ -25,6 +30,7 @@ mkdir -p "$DATA_DIR"
 
 bashio::log.info "Starting Quit Smoking add-on..."
 bashio::log.info "Ingress path: ${INGRESS_PATH}"
+bashio::log.info "Addon slug: ${ADDON_SLUG}"
 bashio::log.info "Notify services: ${NOTIFY_SERVICES:-${NOTIFY_SERVICE:-notify (broadcast)}}"
 bashio::log.info "Data directory: ${DATA_DIR}"
 

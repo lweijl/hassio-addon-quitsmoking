@@ -61,7 +61,7 @@ def _addon_uri(path: str = "") -> str:
 
     The sidebar panel path is /<slug> which the companion app navigates to correctly.
     """
-    slug = os.environ.get("ADDON_SLUG", "472f365d_quitsmoking")
+    slug = os.environ.get("ADDON_SLUG", "") or "472f365d_quitsmoking"
     return f"/{slug}{path}"
 
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.14
+
+### Fixes
+- **ADDON_SLUG was empty**: `bashio::addon.slug` returned empty string. Added fallback chain: bashio → HOSTNAME env var → hardcoded slug. Python side also handles empty string with `or` fallback.
+- **Fixed debug payload**: Test endpoint now shows accurate payload (no phantom `notification_id`).
+
 ## 1.3.13
 
 ### Fixes
