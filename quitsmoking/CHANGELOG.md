@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.6
+
+### Fixes
+- **Notification opens in HA app**: Changed URI format to `/hassio_ingress/<slug>` (underscore). Tapping the notification body also opens the addon.
+- **Test notification with actions**: Test now includes navigation buttons (no side effects) and returns the URI format for debugging.
+- **iOS layout too wide**: Fixed tab bar overflowing on phone screens — reduced padding, tabs scroll horizontally if needed, container prevents horizontal overflow.
+
 ## 1.3.5
 
 ### Fixes

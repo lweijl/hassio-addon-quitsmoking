@@ -1284,18 +1284,22 @@ async def get_pending_notifications():
 
 @app.post("/api/notifications/test")
 async def test_notification():
-    """Send a test notification to verify notification config is working."""
-    from .notifications import NOTIFY_SERVICES
+    """Send a test notification with action buttons to verify navigation works."""
+    from .notifications import NOTIFY_SERVICES, _addon_uri
     result = await send_notification(
         "🧪 Test Notification",
-        "If you see this, notifications are working! "
-        f"Configured services: {', '.join(NOTIFY_SERVICES)}",
-        actions=[Actions.open_app()],
+        "Tap the buttons below to test navigation. Nothing will be logged.",
+        actions=[
+            {"action": "URI", "title": "📱 Open App", "uri": _addon_uri("/")},
+            {"action": "URI", "title": "📊 Progress", "uri": _addon_uri("/")},
+            Actions.stay_strong(),
+        ],
         tag="test",
     )
     return {
         "status": "ok" if result else "failed",
         "services": NOTIFY_SERVICES,
+        "uri_format": _addon_uri("/"),
         "sent_at": datetime.now(TZ).isoformat(),
     }
 

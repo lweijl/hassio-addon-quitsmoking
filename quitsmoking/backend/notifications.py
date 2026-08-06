@@ -57,11 +57,13 @@ NOTIFY_SERVICES = _parse_notify_services()
 
 
 def _addon_uri(path: str = "") -> str:
-    """Build a URI that opens the addon's ingress UI inside the HA companion app."""
-    # The companion app navigates internally with /hassio/ingress/<slug>
-    # Slug is determined by HA based on the repo — use INGRESS_PATH to detect it
+    """Build a URI that opens the addon's ingress UI inside the HA companion app.
+
+    The HA frontend routes ingress addons at /hassio_ingress/<slug>
+    (underscore between hassio and ingress).
+    """
     slug = os.environ.get("ADDON_SLUG", "472f365d_quitsmoking")
-    return f"/hassio/ingress/{slug}{path}"
+    return f"/hassio_ingress/{slug}{path}"
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +180,9 @@ async def send_notification(
         notification_data["tag"] = tag
         # Allow replacing previous notification with same tag
         notification_data["notification_id"] = tag
+    # Tapping the notification body opens the addon
+    if "url" not in notification_data:
+        notification_data["url"] = _addon_uri("/")
     if notification_data:
         payload["data"] = notification_data
 
