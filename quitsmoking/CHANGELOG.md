@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.7
+
+### New
+- **Addon icon & logo**: Added 256x256 icon.png and logo.png (no-smoking symbol on dark teal). Shows in HA Add-ons panel.
+
 ## 1.3.6
 
 ### Fixes
