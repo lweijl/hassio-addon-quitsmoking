@@ -80,7 +80,7 @@
 
 <div class="container">
   <header class="app-header">
-    <h1 class="app-title">🚭 QuitSmoking</h1>
+    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.8</span></h1>
   </header>
 
   <nav class="tab-nav" role="tablist" aria-label="Main navigation">
@@ -200,6 +200,13 @@
     font-size: 1.5rem;
     font-weight: 700;
     color: var(--color-text);
+  }
+
+  .app-version {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: var(--color-secondary-text);
+    vertical-align: super;
   }
 
   .tab-content {
