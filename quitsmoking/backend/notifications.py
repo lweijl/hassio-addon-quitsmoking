@@ -177,9 +177,8 @@ async def send_notification(
         notification_data["tag"] = tag
         # Allow replacing previous notification with same tag
         notification_data["notification_id"] = tag
-    # Tapping the notification body opens the addon
-    if "url" not in notification_data:
-        notification_data["url"] = _addon_uri("")
+    # Note: do NOT set "url" in data — on iOS it can override action URI behavior.
+    # The action buttons handle navigation via their own "uri" key.
     if notification_data:
         payload["data"] = notification_data
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.12
+
+### Fixes
+- **Remove `url` from notification data**: The `url` key in notification data was likely overriding action button `uri` on iOS, causing it to navigate to default lovelace instead of the action's URI.
+
 ## 1.3.11
 
 ### Fixes
