@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.16
+
+### Improvements
+- **Test notification with safe action**: "Log (test)" button opens addon with #action=test which shows a confirmation banner without actually logging anything.
+
 ## 1.3.15
 
 ### Fixes

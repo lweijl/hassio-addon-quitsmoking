@@ -71,6 +71,8 @@
         let pathname = urlObj.pathname.replace(/\/[^/]*\.[^/]*$/, '').replace(/\/$/, '')
         await fetch(`${urlObj.origin}${pathname}/api/actions/skip`, { method: 'POST' })
         actionMessage = '💪 Craving resisted!'
+      } else if (action === 'test') {
+        actionMessage = '✅ Action navigation works! Nothing was logged.'
       }
       setTimeout(() => { actionMessage = null }, 5000)
     } catch (e) {
@@ -89,7 +91,7 @@
 
 <div class="container">
   <header class="app-header">
-    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.15</span></h1>
+    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.16</span></h1>
   </header>
 
   <nav class="tab-nav" role="tablist" aria-label="Main navigation">
