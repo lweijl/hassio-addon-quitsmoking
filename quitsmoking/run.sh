@@ -5,6 +5,9 @@ set -e
 INGRESS_ENTRY=$(bashio::addon.ingress_entry)
 export INGRESS_PATH="${INGRESS_ENTRY}"
 
+# Addon slug for companion app navigation
+export ADDON_SLUG=$(bashio::addon.slug)
+
 # Read options
 export NOTIFY_SERVICE=$(bashio::config 'notify_service' || true)
 

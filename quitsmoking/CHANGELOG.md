@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.5
+
+### Fixes
+- **Correct addon slug**: Notification URIs now use the actual addon slug (`472f365d_quitsmoking`) detected dynamically via `bashio::addon.slug`. No more opening Safari.
+
 ## 1.3.4
 
 ### Fixes
