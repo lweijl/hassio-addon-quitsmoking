@@ -37,13 +37,22 @@
   })
 
   async function handleActionParam() {
+    // Check both query param and hash fragment for action
     const params = new URLSearchParams(window.location.search)
-    const action = params.get('action')
+    let action = params.get('action')
+
+    // Also check hash fragment (e.g., #action=log)
+    if (!action && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      action = hashParams.get('action')
+    }
+
     if (!action) return
 
-    // Clear the query param from URL (so refresh doesn't re-trigger)
+    // Clear the action from URL (so refresh doesn't re-trigger)
     const url = new URL(window.location)
     url.searchParams.delete('action')
+    url.hash = ''
     window.history.replaceState({}, '', url)
 
     try {
@@ -80,7 +89,7 @@
 
 <div class="container">
   <header class="app-header">
-    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.10</span></h1>
+    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">1.3.11</span></h1>
   </header>
 
   <nav class="tab-nav" role="tablist" aria-label="Main navigation">

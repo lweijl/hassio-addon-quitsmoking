@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.11
+
+### Fixes
+- **Notification actions now open addon in HA app**: URI uses `/<slug>` (no trailing slash) which matches the sidebar panel path. Confirmed working via companion app.
+- **Log/Skip from notification**: Uses hash fragments (`#action=log`) instead of query params to avoid interfering with HA's panel routing. Frontend reads both query params and hash fragments.
+- **Tapping notification body**: Also navigates to the addon via `url` data key.
+
 ## 1.3.10
 
 ### Fixes

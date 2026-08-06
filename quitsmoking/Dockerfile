@@ -12,7 +12,7 @@ RUN cd frontend && npm run build
 ## Runtime image
 FROM ${BUILD_FROM}
 
-ARG BUILD_VERSION=1.3.10
+ARG BUILD_VERSION=1.3.11
 
 LABEL \
     io.hass.version="${BUILD_VERSION}" \

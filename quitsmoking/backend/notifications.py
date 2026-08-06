@@ -59,12 +59,10 @@ NOTIFY_SERVICES = _parse_notify_services()
 def _addon_uri(path: str = "") -> str:
     """Build a URI that opens the addon's ingress UI inside the HA companion app.
 
-    The HA frontend route for an addon's ingress panel is:
-    /hassio/addon/<slug>/ingress
-    This is what the sidebar and "OPEN WEB UI" button use.
+    The sidebar panel path is /<slug> which the companion app navigates to correctly.
     """
     slug = os.environ.get("ADDON_SLUG", "472f365d_quitsmoking")
-    return f"/hassio/addon/{slug}/ingress{path}"
+    return f"/{slug}{path}"
 
 
 # ---------------------------------------------------------------------------
@@ -74,11 +72,9 @@ def _addon_uri(path: str = "") -> str:
 class Actions:
     """Pre-built action sets for different notification scenarios.
 
-    All URI actions use /hassio/ingress/local_quitsmoking which opens
-    inside the HA companion app (not Safari).
-
-    For actions that need to trigger API calls (log, skip), we open
-    the addon UI with a query parameter that the frontend handles.
+    URI actions use /<slug> which the companion app navigates to correctly.
+    For actions that trigger API calls, we use hash fragments (#action=log)
+    which are client-side only and don't interfere with HA's panel routing.
     """
 
     @staticmethod
@@ -87,7 +83,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "🚬 Log it",
-            "uri": _addon_uri("/?action=log"),
+            "uri": _addon_uri("#action=log"),
         }
 
     @staticmethod
@@ -96,7 +92,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "🎁 Use Bonus",
-            "uri": _addon_uri("/?action=log_bonus"),
+            "uri": _addon_uri("#action=log_bonus"),
         }
 
     @staticmethod
@@ -105,7 +101,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "💪 Skip it",
-            "uri": _addon_uri("/?action=skip"),
+            "uri": _addon_uri("#action=skip"),
         }
 
     @staticmethod
@@ -114,7 +110,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "📱 Open",
-            "uri": _addon_uri("/"),
+            "uri": _addon_uri(""),
         }
 
     @staticmethod
@@ -123,7 +119,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "📊 Progress",
-            "uri": _addon_uri("/"),
+            "uri": _addon_uri(""),
         }
 
     @staticmethod
@@ -183,7 +179,7 @@ async def send_notification(
         notification_data["notification_id"] = tag
     # Tapping the notification body opens the addon
     if "url" not in notification_data:
-        notification_data["url"] = _addon_uri("/")
+        notification_data["url"] = _addon_uri("")
     if notification_data:
         payload["data"] = notification_data
 

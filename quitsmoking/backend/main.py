@@ -1290,8 +1290,8 @@ async def test_notification():
         "🧪 Test Notification",
         "Tap the buttons below to test navigation. Nothing will be logged.",
         actions=[
-            {"action": "URI", "title": "📱 Open App", "uri": _addon_uri("/")},
-            {"action": "URI", "title": "📊 Progress", "uri": _addon_uri("/")},
+            {"action": "URI", "title": "📱 Open App", "uri": _addon_uri("")},
+            {"action": "URI", "title": "📊 Progress", "uri": _addon_uri("")},
             Actions.stay_strong(),
         ],
         tag="test",
