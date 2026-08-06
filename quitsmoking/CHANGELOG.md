@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.15
+
+### Fixes
+- **Slug hyphen vs underscore**: HOSTNAME returns `472f365d-quitsmoking` (hyphen) but HA panels use underscore. Now normalizes hyphens to underscores.
+
 ## 1.3.14
 
 ### Fixes
