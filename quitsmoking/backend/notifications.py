@@ -57,12 +57,9 @@ NOTIFY_SERVICES = _parse_notify_services()
 
 
 def _addon_uri(path: str = "") -> str:
-    """Build a URI that opens the addon's ingress UI at a given path."""
-    # HA companion app can open /hassio_ingress/<token>/path
-    # Using relative path within the addon
-    if INGRESS_PATH:
-        return f"{INGRESS_PATH}{path}"
-    return path or "/"
+    """Build a URI that opens the addon's ingress UI inside the HA companion app."""
+    # The companion app navigates internally with /hassio/ingress/<slug>
+    return f"/hassio/ingress/local_quitsmoking{path}"
 
 
 # ---------------------------------------------------------------------------
@@ -70,37 +67,45 @@ def _addon_uri(path: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 class Actions:
-    """Pre-built action sets for different notification scenarios."""
+    """Pre-built action sets for different notification scenarios.
+
+    All URI actions use /hassio/ingress/local_quitsmoking which opens
+    inside the HA companion app (not Safari).
+
+    For actions that need to trigger API calls (log, skip), we open
+    the addon UI with a query parameter that the frontend handles.
+    """
 
     @staticmethod
     def log_cigarette() -> dict:
-        """Action button that logs a regular cigarette."""
+        """Action button that opens addon and auto-logs a cigarette."""
         return {
             "action": "URI",
             "title": "🚬 Log it",
-            "uri": _addon_uri("/api/actions/log"),
+            "uri": _addon_uri("/?action=log"),
         }
 
     @staticmethod
     def log_bonus() -> dict:
-        """Action button that logs a bonus cigarette."""
+        """Action button that opens addon and auto-logs a bonus."""
         return {
             "action": "URI",
             "title": "🎁 Use Bonus",
-            "uri": _addon_uri("/api/actions/log_bonus"),
+            "uri": _addon_uri("/?action=log_bonus"),
         }
 
     @staticmethod
     def skip() -> dict:
-        """Action button that records a successful skip (resist craving)."""
+        """Action button that opens addon and records a skip."""
         return {
-            "action": "QS_SKIP",
+            "action": "URI",
             "title": "💪 Skip it",
+            "uri": _addon_uri("/?action=skip"),
         }
 
     @staticmethod
     def open_app() -> dict:
-        """Action button that opens the addon UI."""
+        """Action button that opens the addon UI in the companion app."""
         return {
             "action": "URI",
             "title": "📱 Open",
@@ -113,7 +118,7 @@ class Actions:
         return {
             "action": "URI",
             "title": "📊 Progress",
-            "uri": _addon_uri("/#progress"),
+            "uri": _addon_uri("/"),
         }
 
     @staticmethod

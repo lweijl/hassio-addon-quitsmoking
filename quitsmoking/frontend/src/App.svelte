@@ -8,12 +8,13 @@
   import HealthTimeline from './lib/HealthTimeline.svelte'
   import CravingJournal from './lib/CravingJournal.svelte'
   import WeeklyReport from './lib/WeeklyReport.svelte'
-  import { getStatus } from './lib/api.js'
+  import { getStatus, logCigarette } from './lib/api.js'
 
   let activeTab = $state('dashboard')
   let status = $state(null)
   let error = $state(null)
   let refreshInterval = null
+  let actionMessage = $state(null)
 
   async function fetchStatus() {
     try {
@@ -28,11 +29,45 @@
   onMount(() => {
     fetchStatus()
     refreshInterval = setInterval(fetchStatus, 30000)
+    handleActionParam()
   })
 
   onDestroy(() => {
     if (refreshInterval) clearInterval(refreshInterval)
   })
+
+  async function handleActionParam() {
+    const params = new URLSearchParams(window.location.search)
+    const action = params.get('action')
+    if (!action) return
+
+    // Clear the query param from URL (so refresh doesn't re-trigger)
+    const url = new URL(window.location)
+    url.searchParams.delete('action')
+    window.history.replaceState({}, '', url)
+
+    try {
+      if (action === 'log') {
+        await logCigarette(false)
+        actionMessage = '🚬 Logged from notification!'
+        await fetchStatus()
+      } else if (action === 'log_bonus') {
+        await logCigarette(true)
+        actionMessage = '🎁 Bonus logged from notification!'
+        await fetchStatus()
+      } else if (action === 'skip') {
+        // Call skip endpoint
+        const baseUrl = document.baseURI || window.location.href
+        const urlObj = new URL(baseUrl)
+        let pathname = urlObj.pathname.replace(/\/[^/]*\.[^/]*$/, '').replace(/\/$/, '')
+        await fetch(`${urlObj.origin}${pathname}/api/actions/skip`, { method: 'POST' })
+        actionMessage = '💪 Craving resisted!'
+      }
+      setTimeout(() => { actionMessage = null }, 5000)
+    } catch (e) {
+      console.error('Action failed:', e)
+    }
+  }
 
   function setTab(tab) {
     activeTab = tab
@@ -128,6 +163,12 @@
     </div>
   {/if}
 
+  {#if actionMessage}
+    <div class="action-banner fade-in" role="status">
+      <span>{actionMessage}</span>
+    </div>
+  {/if}
+
   <main class="tab-content fade-in">
     {#if activeTab === 'dashboard'}
       <Dashboard {status} onRefresh={fetchStatus} />
@@ -177,5 +218,16 @@
     margin-top: 12px;
     font-size: 14px;
     color: var(--color-danger);
+  }
+
+  .action-banner {
+    background: rgba(52, 199, 89, 0.15);
+    border: 1px solid var(--color-success);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--color-success);
+    text-align: center;
   }
 </style>

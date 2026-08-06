@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.4
+
+### Fixes
+- **Notification buttons open in HA app**: Tapping notification buttons now opens the addon inside the HA companion app instead of Safari. Uses `/hassio/ingress/local_quitsmoking` internal navigation.
+- **"Log it" from notification**: Opens the addon with `?action=log` which auto-triggers the log and shows a confirmation banner. No manual tap needed beyond the notification button.
+- **"Skip it" from notification**: Same pattern — opens addon and auto-records the skip with encouragement.
+
 ## 1.3.3
 
 ### Fixes
