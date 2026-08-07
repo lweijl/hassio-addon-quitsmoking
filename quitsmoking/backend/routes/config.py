@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from typing import Optional
 from uuid import uuid4
@@ -89,7 +90,10 @@ async def import_entries(request: Request):
       - Swift format: {"version": 1, "entries": [{"id": "...", "timestamp": "...", "isBonus": false}]}
       - HA addon format: [{"id": "...", "timestamp": "...", "is_bonus": false}]
     """
-    body = await request.json()
+    body_bytes = await request.body()
+    if len(body_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Request body too large (max 5MB)")
+    body = json.loads(body_bytes)
 
     # Detect format
     if isinstance(body, list):
@@ -142,7 +146,10 @@ async def import_config(request: Request):
 
     Accepts both Swift format (camelCase) and HA addon format (snake_case).
     """
-    body = await request.json()
+    body_bytes = await request.body()
+    if len(body_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Request body too large (max 5MB)")
+    body = json.loads(body_bytes)
 
     # Detect format by checking key style
     if "startDate" in body:

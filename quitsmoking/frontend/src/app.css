@@ -368,3 +368,9 @@ input:focus {
   background: #48484A;
   color: var(--color-text);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in { animation: none !important; }
+  .shake { animation: none !important; }
+  * { transition-duration: 0.01ms !important; }
+}

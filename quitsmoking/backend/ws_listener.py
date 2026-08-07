@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from random import choice
 from uuid import uuid4
 
 from .engine import TZ
@@ -128,7 +129,6 @@ async def _handle_notification_action(action: str) -> None:
         avoided = engine.cigarettes_avoided(total_smoked, now)
         saved = engine.money_saved(total_smoked, now)
 
-        from random import choice
         encouragements = [
             "You're stronger than the craving! 💪",
             "Every skip is a victory. Keep going! 🏆",
