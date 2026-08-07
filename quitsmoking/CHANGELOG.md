@@ -1,5 +1,47 @@
 # Changelog
 
+## 2.0.0
+
+### 🚀 Major: SQLite Migration
+- **Async SQLite persistence**: Replaced all JSON file storage with aiosqlite. No more blocking I/O in async handlers.
+- **Automatic migration**: On first startup, existing JSON files (entries.json, config.json, cravings.json, sent_notifications.json) are auto-imported into SQLite and renamed to `.migrated`.
+- **WAL mode**: Concurrent reads, single-file database at `/config/quitsmoking/quitsmoking.db`.
+- **Indexed queries**: Timestamps and triggers indexed for fast lookups.
+- **Race condition eliminated**: SQLite handles locking natively — no more data loss risk from concurrent logs.
+
+### 🏗️ Architecture Refactor
+- **main.py split**: From 2071 lines to 62. Code now lives in:
+  - `state.py` — shared state and helpers
+  - `scheduler.py` — notification scheduler + dedup
+  - `ws_listener.py` — websocket event handler
+  - `routes/status.py` — status, log, undo
+  - `routes/history.py` — history, progress, weekly report
+  - `routes/config.py` — config CRUD, imports
+  - `routes/catchup.py` — catch-up detection, backfill
+  - `routes/health.py` — health timeline
+  - `routes/cravings.py` — craving journal + patterns
+  - `routes/actions.py` — notification action endpoints
+  - `routes/debug.py` — health check, debug, test notification
+
+### 🐛 Bug Fixes
+- **Evening check-in timing**: Fixed comparison that failed at certain minutes (used total minutes instead of broken hour+minute AND).
+- **Interval notification dedup**: Interval-based keys no longer get prematurely cleaned up by daily reset.
+- **WS listener msg_id**: Now properly increments per connection.
+- **Dashboard $effect cleanup**: setInterval no longer accumulates on rapid status changes.
+- **Daily mode missed slots**: Scheduler now processes all elapsed slots (not just the first one).
+- **Settings type mismatch**: No longer sends full config spread that could cause Pydantic validation errors.
+
+### 🔧 Improvements
+- **`hassio_api: true`** added to config.yaml (needed for websocket subscription).
+- **Reduced-motion CSS**: Animations disabled when user prefers reduced motion.
+- **Dockerfile HEALTHCHECK**: Container health monitored via `/api/health`.
+- **HealthTimeline auto-refresh**: Updates every 60 seconds (time since last smoke).
+- **Import size limit**: 5MB max on import endpoints to prevent memory exhaustion.
+- **Top-level imports**: Cleaned up inline imports.
+
+### ⬆️ Dependencies
+- Added `aiosqlite==0.20.0`
+
 ## 1.4.1
 
 ### Improvements

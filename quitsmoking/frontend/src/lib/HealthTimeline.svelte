@@ -1,18 +1,30 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import { getHealthTimeline } from './api.js'
 
   let data = $state(null)
   let loading = $state(true)
   let error = $state(null)
+  let refreshInterval = null
 
-  onMount(async () => {
+  async function fetchData() {
     try {
       data = await getHealthTimeline()
+      error = null
     } catch (e) {
       error = e.message
-    } finally {
-      loading = false
+    }
+  }
+
+  onMount(async () => {
+    await fetchData()
+    loading = false
+    refreshInterval = setInterval(fetchData, 60000)
+  })
+
+  onDestroy(() => {
+    if (refreshInterval) {
+      clearInterval(refreshInterval)
     }
   })
 
@@ -111,7 +123,7 @@
   .hero-card {
     text-align: center;
     padding: 24px 16px;
-    background: linear-gradient(135deg, rgba(52, 199, 89, 0.1), rgba(100, 210, 255, 0.1));
+    background: linear-gradient(135deg, var(--color-success-subtle), var(--color-accent-subtle));
   }
 
   .hero-label {

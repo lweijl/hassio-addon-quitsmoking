@@ -12,7 +12,7 @@ RUN cd frontend && npm run build
 ## Runtime image
 FROM ${BUILD_FROM}
 
-ARG BUILD_VERSION=1.4.1
+ARG BUILD_VERSION=2.0.0
 
 LABEL \
     io.hass.version="${BUILD_VERSION}" \
@@ -36,5 +36,8 @@ COPY --from=frontend-builder /build/frontend/dist /app/frontend/dist
 # Copy run script
 COPY run.sh /
 RUN chmod +x /run.sh
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -q --spider http://localhost:8099/api/health || exit 1
 
 CMD ["/run.sh"]

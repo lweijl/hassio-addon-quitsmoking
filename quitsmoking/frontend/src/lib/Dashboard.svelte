@@ -1,8 +1,8 @@
 <script>
   import { onMount, onDestroy } from 'svelte'
-  import { logCigarette, undoLast } from './api.js'
+  import { logCigarette, undoLast, getHealthTimeline } from './api.js'
 
-  let { status = null, onRefresh = () => {} } = $props()
+  let { status = null, onRefresh = () => {}, onNavigate = () => {} } = $props()
 
   let countdownText = $state('--:--:--')
   let progressPercent = $state(0)
@@ -16,18 +16,37 @@
   let pastTime = $state('12:00')
   let pastIsBonus = $state(false)
   let pastLogMessage = $state('')
+  let showOverLimitConfirm = $state(false)
+  let healthMilestones = $state(null)
 
   $effect(() => {
     if (status) {
       updateCountdown()
       if (tickInterval) clearInterval(tickInterval)
       tickInterval = setInterval(updateCountdown, 1000)
+      return () => {
+        if (tickInterval) clearInterval(tickInterval)
+      }
+    }
+  })
+
+  $effect(() => {
+    if (status?.mode === 'quit') {
+      fetchHealthMilestones()
     }
   })
 
   onDestroy(() => {
     if (tickInterval) clearInterval(tickInterval)
   })
+
+  async function fetchHealthMilestones() {
+    try {
+      healthMilestones = await getHealthTimeline()
+    } catch (e) {
+      // Non-critical, silently fail
+    }
+  }
 
   function updateCountdown() {
     if (!status || !status.next_allowed_time) {
@@ -61,7 +80,6 @@
       const elapsed = totalMs - diff
       progressPercent = Math.min(100, Math.max(0, (elapsed / totalMs) * 100))
     } else if (status.time_until_next_seconds) {
-      // Daily mode: use the original time_until_next_seconds as total duration
       const totalMs = status.time_until_next_seconds * 1000
       const elapsed = totalMs - diff
       progressPercent = Math.min(100, Math.max(0, (elapsed / totalMs) * 100))
@@ -70,16 +88,25 @@
     }
   }
 
+  function handleLogClick(isBonus = false) {
+    if (loading) return
+    // Over-limit interstitial check
+    if (!isBonus && (status?.remaining_today ?? 1) === 0 && status?.mode !== 'quit') {
+      showOverLimitConfirm = true
+      return
+    }
+    handleLog(isBonus)
+  }
+
   async function handleLog(isBonus = false) {
     if (loading) return
     loading = true
+    showOverLimitConfirm = false
     try {
       const newStatus = await logCigarette(isBonus)
-      // Use the response directly — avoids stale cache from GET /status
       status = newStatus
       showUndo = true
       setTimeout(() => { showUndo = false }, 10000)
-      // Also trigger a background refresh for good measure
       onRefresh()
     } catch (e) {
       console.error('Failed to log:', e)
@@ -140,6 +167,17 @@
     const day = Math.floor(Date.now() / 86400000)
     return motivationalTexts[day % motivationalTexts.length]
   }
+
+  function getNextMilestones() {
+    if (!healthMilestones?.milestones) return []
+    const reached = healthMilestones.milestones.filter(m => m.reached)
+    const upcoming = healthMilestones.milestones.filter(m => !m.reached)
+    // Show last 1 reached + next 2 upcoming
+    const result = []
+    if (reached.length > 0) result.push(reached[reached.length - 1])
+    result.push(...upcoming.slice(0, 2))
+    return result.slice(0, 3)
+  }
 </script>
 
 {#if !status}
@@ -172,6 +210,7 @@
             style="width: {progressPercent}%; background: {canSmoke ? 'var(--color-success)' : 'var(--color-accent)'};"
           ></div>
         </div>
+        <p class="motivation-inline">{getMotivation()}</p>
       {:else if status.mode === 'daily'}
         <p class="countdown-label">Today's allowance</p>
         <p class="daily-count">
@@ -192,18 +231,8 @@
           <p class="next-scheduled-label">Done for today</p>
           <p class="countdown available">✓</p>
         {/if}
+        <!-- Timeline only (dots removed as redundant) -->
         {#if status.schedule_times && status.schedule_times.length > 0}
-          <div class="dots" aria-label="Schedule times">
-            {#each status.schedule_times as time, i}
-              {@const timeStr = String(time[0]).padStart(2, '0') + ':' + String(time[1]).padStart(2, '0')}
-              <div
-                class="dot"
-                class:filled={i < (status.smoked_today ?? 0)}
-                title={timeStr}
-              ></div>
-            {/each}
-          </div>
-          <!-- Smoking Times Timeline -->
           <div class="timeline" aria-label="Smoking schedule timeline">
             <div class="timeline-track"></div>
             <div class="timeline-dots">
@@ -232,55 +261,106 @@
             </div>
           </div>
         {/if}
+        <p class="motivation-inline">{getMotivation()}</p>
       {:else if status.mode === 'quit'}
+        <!-- Enriched quit mode dashboard -->
         <p class="countdown-label">You're free!</p>
-        <p class="countdown available">🎉</p>
-        <p style="text-align:center; color: var(--color-success); font-weight: 600;">
-          {status.days_since_start ?? 0} days smoke-free
-        </p>
+        <p class="quit-hero-days">{status.days_since_start ?? 0}</p>
+        <p class="quit-hero-label">days smoke-free</p>
+        <p class="motivation-inline">{getMotivation()}</p>
       {/if}
     </div>
+
+    <!-- Quit mode: health milestones inline -->
+    {#if status.mode === 'quit' && healthMilestones}
+      <div class="card quit-milestones-card">
+        <h3 class="quit-section-title">🫁 Health Recovery</h3>
+        <div class="quit-milestones">
+          {#each getNextMilestones() as milestone}
+            <div class="quit-milestone" class:reached={milestone.reached}>
+              <span class="quit-milestone-icon">{milestone.reached ? '✅' : '⏳'}</span>
+              <div class="quit-milestone-info">
+                <span class="quit-milestone-title">{milestone.icon} {milestone.title}</span>
+                <span class="quit-milestone-desc">{milestone.description}</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Quit mode savings card -->
+      <div class="card quit-savings-card">
+        <div class="quit-savings-amount">€{(status.money_saved ?? 0).toFixed(2)}</div>
+        <div class="quit-savings-label">saved by not smoking</div>
+      </div>
+    {/if}
+
+    <!-- Over-limit interstitial -->
+    {#if showOverLimitConfirm}
+      <div class="card over-limit-card fade-in">
+        <p class="over-limit-text">You've hit today's limit. Log a craving instead?</p>
+        <div class="over-limit-actions">
+          <button
+            class="btn btn-secondary"
+            onclick={() => { showOverLimitConfirm = false; onNavigate('cravings') }}
+            aria-label="Log a craving instead"
+          >
+            📓 Log Craving
+          </button>
+          <button
+            class="btn btn-danger"
+            onclick={() => handleLog(false)}
+            disabled={loading}
+            aria-label="Log cigarette over limit"
+          >
+            🚬 Log Anyway
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <!-- Action Buttons -->
-    <div class="actions">
-      <button
-        class="btn btn-primary log-btn"
-        class:shake={shaking}
-        onclick={() => handleLog(false)}
-        disabled={loading || status.mode === 'quit'}
-        aria-label="Log a cigarette"
-      >
-        {#if (status.remaining_today ?? 1) === 0}
-          🚬 Log (over limit)
-        {:else if !canSmoke}
-          🚬 Log (early)
-        {:else}
-          🚬 Log Cigarette
+    {#if !showOverLimitConfirm}
+      <div class="actions">
+        <button
+          class="btn btn-primary log-btn"
+          class:shake={shaking}
+          onclick={() => handleLogClick(false)}
+          disabled={loading || status.mode === 'quit'}
+          aria-label="Log a cigarette"
+        >
+          {#if (status.remaining_today ?? 1) === 0}
+            🚬 Log (over limit)
+          {:else if !canSmoke}
+            🚬 Log (early)
+          {:else}
+            🚬 Log Cigarette
+          {/if}
+        </button>
+
+        {#if (status.remaining_bonus ?? 0) > 0}
+          <button
+            class="btn btn-bonus"
+            onclick={() => handleLogClick(true)}
+            disabled={loading}
+            aria-label="Use bonus cigarette, {status.remaining_bonus} remaining"
+          >
+            🎁 Use Bonus ({status.remaining_bonus})
+          </button>
         {/if}
-      </button>
 
-      {#if (status.remaining_bonus ?? 0) > 0}
-        <button
-          class="btn btn-bonus"
-          onclick={() => handleLog(true)}
-          disabled={loading}
-          aria-label="Use bonus cigarette, {status.remaining_bonus} remaining"
-        >
-          🎁 Use Bonus ({status.remaining_bonus})
-        </button>
-      {/if}
-
-      {#if showUndo}
-        <button
-          class="btn btn-danger undo-btn fade-in"
-          onclick={handleUndo}
-          disabled={loading}
-          aria-label="Undo last log"
-        >
-          ↩️ Undo
-        </button>
-      {/if}
-    </div>
+        {#if showUndo}
+          <button
+            class="btn btn-danger undo-btn fade-in"
+            onclick={handleUndo}
+            disabled={loading}
+            aria-label="Undo last log"
+          >
+            ↩️ Undo
+          </button>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Stats -->
     <div class="stats-grid">
@@ -294,7 +374,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-value">{status.days_since_start ?? 0}</div>
-        <div class="stat-label">Days</div>
+        <div class="stat-label">{status.mode === 'quit' ? 'Smoke-free' : 'Tapering'}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{status.days_until_quit ?? '—'}</div>
@@ -302,14 +382,14 @@
       </div>
     </div>
 
-    <!-- Log for past date -->
+    <!-- Log for past date (collapsed trigger below stats) -->
     {#if !showPastLog}
       <button
-        class="btn btn-secondary past-log-toggle"
+        class="past-log-trigger"
         onclick={initPastDate}
         aria-label="Log a cigarette for a past date"
       >
-        📅 Log for a past date
+        📅 Log for past date
       </button>
     {:else}
       <div class="card past-log-card fade-in">
@@ -357,7 +437,7 @@
     {/if}
 
     <!-- Bonus remaining -->
-    {#if status.remaining_bonus != null}
+    {#if status.remaining_bonus != null && status.mode !== 'quit'}
       <div class="card bonus-card">
         <span class="bonus-icon">🎁</span>
         <span class="bonus-text">
@@ -365,9 +445,6 @@
         </span>
       </div>
     {/if}
-
-    <!-- Motivation -->
-    <p class="motivation">{getMotivation()}</p>
   </div>
 {/if}
 
@@ -393,17 +470,17 @@
   }
 
   .badge-interval {
-    background: rgba(100, 210, 255, 0.15);
+    background: var(--color-accent-subtle);
     color: var(--color-accent);
   }
 
   .badge-daily {
-    background: rgba(255, 149, 0, 0.15);
+    background: var(--color-warning-subtle);
     color: var(--color-warning);
   }
 
   .badge-quit {
-    background: rgba(52, 199, 89, 0.15);
+    background: var(--color-success-subtle);
     color: var(--color-success);
   }
 
@@ -455,6 +532,136 @@
     color: var(--color-secondary-text);
   }
 
+  /* Motivation inline in countdown card */
+  .motivation-inline {
+    text-align: center;
+    font-size: 13px;
+    color: var(--color-secondary-text);
+    font-style: italic;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-surface-elevated);
+  }
+
+  /* Quit mode hero */
+  .quit-hero-days {
+    font-size: 4rem;
+    font-weight: 800;
+    color: var(--color-success);
+    line-height: 1;
+    margin: 8px 0 4px;
+  }
+
+  .quit-hero-label {
+    font-size: 16px;
+    color: var(--color-success);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Quit milestones card */
+  .quit-milestones-card {
+    padding: 16px;
+  }
+
+  .quit-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 12px;
+  }
+
+  .quit-milestones {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .quit-milestone {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-elevated);
+  }
+
+  .quit-milestone:not(.reached) {
+    opacity: 0.7;
+  }
+
+  .quit-milestone-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .quit-milestone-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .quit-milestone-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .quit-milestone-desc {
+    font-size: 12px;
+    color: var(--color-secondary-text);
+    line-height: 1.3;
+  }
+
+  /* Quit savings card */
+  .quit-savings-card {
+    text-align: center;
+    padding: 20px 16px;
+    border-left: 3px solid var(--color-success);
+  }
+
+  .quit-savings-amount {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-success);
+  }
+
+  .quit-savings-label {
+    font-size: 13px;
+    color: var(--color-secondary-text);
+    margin-top: 4px;
+  }
+
+  /* Over-limit interstitial */
+  .over-limit-card {
+    padding: 20px 16px;
+    text-align: center;
+    border: 1px solid var(--color-warning);
+    background: var(--color-warning-subtle);
+  }
+
+  .over-limit-text {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text);
+    margin-bottom: 16px;
+  }
+
+  .over-limit-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .over-limit-actions .btn {
+    flex: 1;
+    max-width: 180px;
+    font-size: 14px;
+    padding: 12px 16px;
+  }
+
   .actions {
     display: flex;
     flex-direction: column;
@@ -486,12 +693,23 @@
     color: var(--color-secondary-text);
   }
 
-  .motivation {
+  /* Past log trigger (collapsed, subtle) */
+  .past-log-trigger {
+    display: block;
+    width: 100%;
     text-align: center;
-    font-size: 14px;
+    font-size: 12px;
     color: var(--color-secondary-text);
-    font-style: italic;
-    padding: 8px 0;
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity var(--transition);
+  }
+
+  .past-log-trigger:hover {
+    opacity: 1;
   }
 
   /* Smoking Times Timeline */
@@ -568,18 +786,13 @@
     font-weight: 600;
   }
 
+  /* Dark-theme optimized animation colors */
   @keyframes pulse {
     0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(100, 210, 255, 0.4); }
     50% { transform: scale(1.15); box-shadow: 0 0 10px 4px rgba(100, 210, 255, 0.2); }
   }
 
   /* Past log section */
-  .past-log-toggle {
-    font-size: 13px;
-    padding: 10px;
-    opacity: 0.7;
-  }
-
   .past-log-card {
     padding: 16px;
   }
