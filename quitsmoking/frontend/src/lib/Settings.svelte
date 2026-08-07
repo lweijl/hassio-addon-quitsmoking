@@ -408,28 +408,34 @@
 
       <div class="import-grid">
         <div class="import-group">
-          <label for="import-entries" class="import-label">📋 Import Entries</label>
+          <span class="import-label">📋 Import Entries</span>
           <p class="import-hint">entries.json from macOS app or backup</p>
+          <label class="btn btn-secondary upload-btn" for="import-entries" aria-label="Choose entries file to import">
+            📋 Choose File
+          </label>
           <input
             id="import-entries"
             type="file"
             accept=".json"
+            class="sr-only"
             onchange={(e) => handleFileImport(e, 'entries')}
             disabled={importing}
-            aria-label="Import cigarette entries from JSON file"
           />
         </div>
 
         <div class="import-group">
-          <label for="import-config" class="import-label">⚙️ Import Config</label>
+          <span class="import-label">⚙️ Import Config</span>
           <p class="import-hint">config.json from macOS app or backup</p>
+          <label class="btn btn-secondary upload-btn" for="import-config" aria-label="Choose config file to import">
+            ⚙️ Choose File
+          </label>
           <input
             id="import-config"
             type="file"
             accept=".json"
+            class="sr-only"
             onchange={(e) => handleFileImport(e, 'config')}
             disabled={importing}
-            aria-label="Import schedule configuration from JSON file"
           />
         </div>
       </div>
@@ -501,17 +507,17 @@
   }
 
   .mode-pill.interval {
-    background: rgba(100, 210, 255, 0.15);
+    background: var(--color-accent-subtle);
     color: var(--color-accent);
   }
 
   .mode-pill.daily {
-    background: rgba(255, 149, 0, 0.15);
+    background: var(--color-warning-subtle);
     color: var(--color-warning);
   }
 
   .mode-pill.quit {
-    background: rgba(52, 199, 89, 0.15);
+    background: var(--color-success-subtle);
     color: var(--color-success);
   }
 
@@ -597,9 +603,12 @@
     margin-bottom: 6px;
   }
 
-  .import-group input[type="file"] {
-    font-size: 13px;
-    color: var(--color-text);
+  .upload-btn {
+    align-self: flex-start;
+    font-size: 14px;
+    padding: 10px 16px;
+    min-height: 40px;
+    cursor: pointer;
   }
 
   .import-status {
@@ -614,7 +623,7 @@
   }
 
   .current-row {
-    background: rgba(100, 210, 255, 0.05);
+    background: var(--color-accent-subtle);
   }
 
   .indicator-cell {
@@ -671,7 +680,7 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: rgba(255, 59, 48, 0.15);
+    background: var(--color-danger-subtle);
     color: var(--color-danger);
     font-size: 12px;
     font-weight: 700;
@@ -682,7 +691,8 @@
   }
 
   .delete-btn:hover {
-    background: rgba(255, 59, 48, 0.3);
+    background: var(--color-danger);
+    color: #FFF;
   }
 
   .schedule-actions {

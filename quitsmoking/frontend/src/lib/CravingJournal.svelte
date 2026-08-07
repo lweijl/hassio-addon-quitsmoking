@@ -313,7 +313,7 @@
 
   .trigger-btn.selected {
     border-color: var(--color-accent);
-    background: rgba(100, 210, 255, 0.1);
+    background: var(--color-accent-subtle);
   }
 
   .field-label {
@@ -362,12 +362,12 @@
 
   .resist-btn.active {
     border-color: var(--color-success);
-    background: rgba(52, 199, 89, 0.1);
+    background: var(--color-success-subtle);
   }
 
   .resist-btn.gave-in.active {
     border-color: var(--color-warning);
-    background: rgba(255, 149, 0, 0.1);
+    background: var(--color-warning-subtle);
   }
 
   .notes-section {

@@ -123,7 +123,7 @@
   .hero-card {
     text-align: center;
     padding: 24px 16px;
-    background: linear-gradient(135deg, rgba(52, 199, 89, 0.1), rgba(100, 210, 255, 0.1));
+    background: linear-gradient(135deg, var(--color-success-subtle), var(--color-accent-subtle));
   }
 
   .hero-label {
