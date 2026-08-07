@@ -1,9 +1,10 @@
 <script>
   import { onMount, onDestroy } from 'svelte'
   import { getHistory } from './api.js'
-  import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineController, LineElement, PointElement } from 'chart.js'
+  import { getChartColors } from './chartColors.js'
+  import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineController, LineElement, PointElement, SubTitle, Title } from 'chart.js'
 
-  Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineController, LineElement, PointElement)
+  Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineController, LineElement, PointElement, SubTitle, Title)
 
   let canvasEl = $state(null)
   let chart = null
@@ -11,13 +12,27 @@
   let range = $state(7)
   let loading = $state(true)
   let error = $state(null)
+  let themeHandler = null
+  let mql = null
 
   onMount(async () => {
     await fetchHistory()
+
+    // Re-render chart on theme changes
+    themeHandler = () => renderChart()
+    window.addEventListener('themechange', themeHandler)
+    mql = window.matchMedia('(prefers-color-scheme: light)')
+    mql.addEventListener('change', themeHandler)
   })
 
   onDestroy(() => {
     if (chart) chart.destroy()
+    if (themeHandler) {
+      window.removeEventListener('themechange', themeHandler)
+    }
+    if (mql && themeHandler) {
+      mql.removeEventListener('change', themeHandler)
+    }
   })
 
   async function fetchHistory() {
@@ -41,6 +56,7 @@
   function renderChart() {
     if (!historyData || !canvasEl) return
 
+    const colors = getChartColors()
     const days = historyData.days || []
 
     let labels, regularData, bonusData, allowanceData
@@ -82,8 +98,8 @@
           {
             label: 'Regular',
             data: regularData,
-            backgroundColor: 'rgba(100, 210, 255, 0.7)',
-            borderColor: 'rgba(100, 210, 255, 1)',
+            backgroundColor: colors.regular,
+            borderColor: colors.regularBorder,
             borderWidth: 1,
             borderRadius: 4,
             order: 2
@@ -91,8 +107,8 @@
           {
             label: 'Bonus',
             data: bonusData,
-            backgroundColor: 'rgba(175, 82, 222, 0.7)',
-            borderColor: 'rgba(175, 82, 222, 1)',
+            backgroundColor: colors.bonus,
+            borderColor: colors.bonusBorder,
             borderWidth: 1,
             borderRadius: 4,
             order: 3
@@ -101,7 +117,7 @@
             label: 'Allowance',
             type: 'line',
             data: allowanceData,
-            borderColor: 'rgba(255, 149, 0, 0.8)',
+            borderColor: colors.allowanceLine,
             borderWidth: 2,
             borderDash: [5, 5],
             pointRadius: 0,
@@ -121,34 +137,47 @@
           legend: {
             position: 'bottom',
             labels: {
-              color: '#8E8E93',
+              color: colors.legendColor,
               padding: 16,
               usePointStyle: true,
               pointStyle: 'circle'
             }
           },
           tooltip: {
-            backgroundColor: '#2C2C2E',
-            titleColor: '#FFFFFF',
-            bodyColor: '#8E8E93',
-            borderColor: '#3A3A3C',
+            backgroundColor: colors.tooltipBg,
+            titleColor: colors.tooltipTitle,
+            bodyColor: colors.tooltipBody,
+            borderColor: colors.tooltipBorder,
             borderWidth: 1,
             cornerRadius: 8,
             padding: 12
-          }
+          },
+          subtitle: range === 0 ? {
+            display: true,
+            text: 'Aggregated per week',
+            color: colors.ticks,
+            font: { size: 12, style: 'italic' },
+            padding: { bottom: 8 }
+          } : { display: false }
         },
         scales: {
           x: {
             stacked: true,
             grid: { display: false },
-            ticks: { color: '#8E8E93', font: { size: 11 } }
+            ticks: { color: colors.ticks, font: { size: 11 } }
           },
           y: {
             stacked: true,
             beginAtZero: true,
-            grid: { color: 'rgba(142, 142, 147, 0.1)' },
+            grid: { color: colors.grid },
+            title: range === 0 ? {
+              display: true,
+              text: 'Weekly total',
+              color: colors.ticks,
+              font: { size: 12 }
+            } : { display: false },
             ticks: {
-              color: '#8E8E93',
+              color: colors.ticks,
               stepSize: 1,
               font: { size: 11 }
             }
@@ -169,7 +198,7 @@
 <div class="history fade-in">
   <div class="card">
     <div class="history-header">
-      <h2 class="section-title">Daily Cigarettes</h2>
+      <h2 class="section-title">{range === 0 ? 'Weekly Cigarettes' : 'Daily Cigarettes'}</h2>
       <div class="range-selector">
         <button
           class="range-btn"
@@ -199,11 +228,11 @@
     {:else if error}
       <div class="chart-placeholder">
         <p style="color: var(--color-danger)">⚠️ {error}</p>
-        <button class="btn btn-secondary" onclick={fetchHistory}>Retry</button>
+        <button class="btn btn-secondary" onclick={fetchHistory} aria-label="Retry loading history">Retry</button>
       </div>
     {:else}
       <div class="chart-container">
-        <canvas bind:this={canvasEl}></canvas>
+        <canvas bind:this={canvasEl} aria-label="Cigarette history chart"></canvas>
       </div>
     {/if}
   </div>

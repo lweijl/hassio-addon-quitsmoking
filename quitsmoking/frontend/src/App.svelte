@@ -103,7 +103,8 @@
       aria-selected={activeTab === 'dashboard'}
       aria-label="Dashboard"
     >
-      🏠
+      <span class="tab-icon">🏠</span>
+      <span class="tab-label">Home</span>
     </button>
     <button
       class="tab-btn"
@@ -113,7 +114,8 @@
       aria-selected={activeTab === 'health'}
       aria-label="Health Timeline"
     >
-      🫁
+      <span class="tab-icon">🫁</span>
+      <span class="tab-label">Health</span>
     </button>
     <button
       class="tab-btn"
@@ -123,7 +125,8 @@
       aria-selected={activeTab === 'cravings'}
       aria-label="Craving Journal"
     >
-      📓
+      <span class="tab-icon">📓</span>
+      <span class="tab-label">Cravings</span>
     </button>
     <button
       class="tab-btn"
@@ -133,7 +136,8 @@
       aria-selected={activeTab === 'report'}
       aria-label="Weekly Report"
     >
-      📊
+      <span class="tab-icon">📊</span>
+      <span class="tab-label">Report</span>
     </button>
     <button
       class="tab-btn"
@@ -143,7 +147,8 @@
       aria-selected={activeTab === 'history'}
       aria-label="History"
     >
-      📈
+      <span class="tab-icon">📈</span>
+      <span class="tab-label">History</span>
     </button>
     <button
       class="tab-btn"
@@ -153,7 +158,8 @@
       aria-selected={activeTab === 'progress'}
       aria-label="Progress"
     >
-      🏆
+      <span class="tab-icon">🏆</span>
+      <span class="tab-label">Progress</span>
     </button>
     <button
       class="tab-btn"
@@ -163,7 +169,8 @@
       aria-selected={activeTab === 'settings'}
       aria-label="Settings"
     >
-      ⚙️
+      <span class="tab-icon">⚙️</span>
+      <span class="tab-label">Settings</span>
     </button>
   </nav>
 
@@ -182,7 +189,7 @@
 
   <main class="tab-content fade-in">
     {#if activeTab === 'dashboard'}
-      <Dashboard {status} onRefresh={fetchStatus} />
+      <Dashboard {status} onRefresh={fetchStatus} onNavigate={setTab} />
     {:else if activeTab === 'health'}
       <HealthTimeline />
     {:else if activeTab === 'cravings'}
@@ -229,7 +236,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    background: rgba(255, 59, 48, 0.15);
+    background: var(--color-danger-subtle);
     border: 1px solid var(--color-danger);
     border-radius: var(--radius-sm);
     padding: 12px 16px;
@@ -239,7 +246,7 @@
   }
 
   .action-banner {
-    background: rgba(52, 199, 89, 0.15);
+    background: var(--color-success-subtle);
     border: 1px solid var(--color-success);
     border-radius: var(--radius-sm);
     padding: 12px 16px;

@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte'
   import { getProgress } from './api.js'
+  import { getChartColors } from './chartColors.js'
   import { Chart, LineController, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend, Filler } from 'chart.js'
 
   Chart.register(LineController, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend, Filler)
@@ -13,14 +14,28 @@
   let savingsCanvasEl = $state(null)
   let avoidedChart = null
   let savingsChart = null
+  let themeHandler = null
+  let mql = null
 
   onMount(async () => {
     await fetchProgress()
+
+    // Re-render charts on theme changes
+    themeHandler = () => renderCharts()
+    window.addEventListener('themechange', themeHandler)
+    mql = window.matchMedia('(prefers-color-scheme: light)')
+    mql.addEventListener('change', themeHandler)
   })
 
   onDestroy(() => {
     if (avoidedChart) avoidedChart.destroy()
     if (savingsChart) savingsChart.destroy()
+    if (themeHandler) {
+      window.removeEventListener('themechange', themeHandler)
+    }
+    if (mql && themeHandler) {
+      mql.removeEventListener('change', themeHandler)
+    }
   })
 
   async function fetchProgress() {
@@ -45,6 +60,7 @@
     if (!avoidedCanvasEl || !progressData.cumulative_avoided) return
     if (avoidedChart) avoidedChart.destroy()
 
+    const colors = getChartColors()
     const data = progressData.cumulative_avoided
     const labels = data.map(d => {
       const date = new Date(d.date)
@@ -58,16 +74,17 @@
         datasets: [{
           label: 'Cigarettes Avoided',
           data: data.map(d => d.avoided_cumulative),
-          borderColor: 'rgba(52, 199, 89, 1)',
-          backgroundColor: 'rgba(52, 199, 89, 0.1)',
+          borderColor: colors.avoided,
+          backgroundColor: colors.avoidedBg,
           borderWidth: 2,
           fill: true,
           tension: 0.3,
           pointRadius: 0,
+          pointHoverRadius: 4,
           pointHitRadius: 10
         }]
       },
-      options: chartOptions('Cumulative Cigarettes Avoided')
+      options: chartOptions(colors, 'Cumulative Cigarettes Avoided')
     })
   }
 
@@ -75,6 +92,7 @@
     if (!savingsCanvasEl || !progressData.cumulative_saved) return
     if (savingsChart) savingsChart.destroy()
 
+    const colors = getChartColors()
     const data = progressData.cumulative_saved
     const labels = data.map(d => {
       const date = new Date(d.date)
@@ -88,20 +106,21 @@
         datasets: [{
           label: 'Money Saved (€)',
           data: data.map(d => d.saved_cumulative),
-          borderColor: 'rgba(100, 210, 255, 1)',
-          backgroundColor: 'rgba(100, 210, 255, 0.1)',
+          borderColor: colors.saved,
+          backgroundColor: colors.savedBg,
           borderWidth: 2,
           fill: true,
           tension: 0.3,
           pointRadius: 0,
+          pointHoverRadius: 4,
           pointHitRadius: 10
         }]
       },
-      options: chartOptions('Money Saved (€)')
+      options: chartOptions(colors, 'Money Saved (€)')
     })
   }
 
-  function chartOptions(title) {
+  function chartOptions(colors, title) {
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -112,10 +131,10 @@
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#2C2C2E',
-          titleColor: '#FFFFFF',
-          bodyColor: '#8E8E93',
-          borderColor: '#3A3A3C',
+          backgroundColor: colors.tooltipBg,
+          titleColor: colors.tooltipTitle,
+          bodyColor: colors.tooltipBody,
+          borderColor: colors.tooltipBorder,
           borderWidth: 1,
           cornerRadius: 8,
           padding: 12
@@ -124,12 +143,12 @@
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: '#8E8E93', font: { size: 11 }, maxTicksLimit: 8 }
+          ticks: { color: colors.ticks, font: { size: 11 }, maxTicksLimit: 8 }
         },
         y: {
           beginAtZero: true,
-          grid: { color: 'rgba(142, 142, 147, 0.1)' },
-          ticks: { color: '#8E8E93', font: { size: 11 } }
+          grid: { color: colors.grid },
+          ticks: { color: colors.ticks, font: { size: 11 } }
         }
       }
     }
