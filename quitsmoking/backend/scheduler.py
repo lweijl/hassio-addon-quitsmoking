@@ -233,10 +233,8 @@ async def _check_and_send_notifications() -> None:
 
     # ─── Evening check-in (1 hour before window end) ───
     evening_minutes = window_end_minutes - 60  # 1h before window closes
-    evening_hour = evening_minutes // 60
-    evening_minute = evening_minutes % 60
 
-    if now.hour >= evening_hour and now.minute >= evening_minute and not await _was_sent("evening_checkin", now):
+    if now_minutes >= evening_minutes and not await _was_sent("evening_checkin", now):
         if schedule.mode == ScheduleMode.QUIT:
             await send_notification(
                 "🌙 Day complete!",

@@ -29,9 +29,9 @@ async def _ws_event_listener() -> None:
         return
 
     ws_url = "ws://supervisor/core/websocket"
-    msg_id = 1
 
     while True:
+        msg_id = 0
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(ws_url) as ws:
@@ -56,6 +56,7 @@ async def _ws_event_listener() -> None:
                     logger.info("WS: connected and authenticated")
 
                     # Subscribe to mobile_app_notification_action events
+                    msg_id += 1
                     await ws.send_json({
                         "id": msg_id,
                         "type": "subscribe_events",
