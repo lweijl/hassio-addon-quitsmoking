@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.3
+
+### 🐛 Bug Fixes
+- **Slider fill missing**: Intensity slider in Craving Log now shows accent-colored fill from left to thumb position. Uses CSS custom property + linear-gradient (WebKit/Safari compatible).
+
 ## 2.0.2
 
 ### 🐛 Bug Fixes

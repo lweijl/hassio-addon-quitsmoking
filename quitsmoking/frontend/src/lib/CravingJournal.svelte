@@ -117,6 +117,7 @@
           step="1"
           bind:value={intensity}
           class="intensity-slider"
+          style="--fill: {(intensity - 1) / 4 * 100}%;"
           aria-label="Craving intensity, {intensity} out of 5"
         />
         <div class="intensity-labels">
@@ -335,8 +336,20 @@
     appearance: none;
     height: 6px;
     border-radius: 3px;
-    background: var(--color-surface-elevated);
+    background: linear-gradient(
+      to right,
+      var(--color-accent) 0%,
+      var(--color-accent) var(--fill, 50%),
+      var(--color-surface-elevated) var(--fill, 50%),
+      var(--color-surface-elevated) 100%
+    );
     outline: none;
+  }
+
+  .intensity-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: transparent;
   }
 
   .intensity-slider::-webkit-slider-thumb {
@@ -347,6 +360,7 @@
     border-radius: 50%;
     background: var(--color-accent);
     cursor: pointer;
+    margin-top: -8px;
   }
 
   .intensity-slider::-moz-range-thumb {
@@ -362,6 +376,12 @@
     height: 6px;
     border-radius: 3px;
     background: var(--color-surface-elevated);
+  }
+
+  .intensity-slider::-moz-range-progress {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--color-accent);
   }
 
   .intensity-labels {
