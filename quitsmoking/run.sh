@@ -13,25 +13,19 @@ if [ -z "$ADDON_SLUG" ]; then
 fi
 export ADDON_SLUG
 
-# Read options
-export NOTIFY_SERVICE=$(bashio::config 'notify_service' || true)
-
-# Read notify_services list and join as comma-separated
-NOTIFY_SERVICES_JSON=$(bashio::config 'notify_services')
-if [ "$NOTIFY_SERVICES_JSON" != "null" ] && [ -n "$NOTIFY_SERVICES_JSON" ]; then
-    export NOTIFY_SERVICES=$(bashio::config 'notify_services | join(",")')
-else
-    export NOTIFY_SERVICES=""
-fi
-
 # Data directory for persistence
 export DATA_DIR="/config/quitsmoking"
 mkdir -p "$DATA_DIR"
 
+# Read notify_services for migration (configured in-app after first startup)
+NOTIFY_SERVICES_JSON=$(bashio::config 'notify_services' 2>/dev/null || echo "")
+if [ "$NOTIFY_SERVICES_JSON" != "null" ] && [ -n "$NOTIFY_SERVICES_JSON" ]; then
+    export NOTIFY_SERVICES=$(bashio::config 'notify_services | join(",")' 2>/dev/null || echo "")
+fi
+
 bashio::log.info "Starting Quit Smoking add-on..."
 bashio::log.info "Ingress path: ${INGRESS_PATH}"
 bashio::log.info "Addon slug: ${ADDON_SLUG}"
-bashio::log.info "Notify services: ${NOTIFY_SERVICES:-${NOTIFY_SERVICE:-notify (broadcast)}}"
 bashio::log.info "Data directory: ${DATA_DIR}"
 
 cd /app

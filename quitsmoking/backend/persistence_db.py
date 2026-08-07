@@ -341,6 +341,38 @@ class SentNotificationStore:
 
 
 # ---------------------------------------------------------------------------
+# NotifyServiceStore (async)
+# ---------------------------------------------------------------------------
+
+class NotifyServiceStore:
+    """Async SQLite-backed notification service store."""
+
+    async def get_services(self) -> list[str]:
+        """Get configured notify services."""
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT value FROM config WHERE key = 'notify_services'"
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    try:
+                        return json.loads(row["value"])
+                    except (json.JSONDecodeError, TypeError):
+                        return []
+        return []
+
+    async def save_services(self, services: list[str]) -> None:
+        """Save notify services list."""
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                ("notify_services", json.dumps(services)),
+            )
+            await db.commit()
+
+
+# ---------------------------------------------------------------------------
 # Migration from JSON
 # ---------------------------------------------------------------------------
 
@@ -431,6 +463,18 @@ async def migrate_from_json() -> None:
 
     if migrated_any:
         logger.info("JSON → SQLite migration complete")
+
+    # Migrate notify_services from environment variable (addon config → DB)
+    notify_services_env = os.environ.get("NOTIFY_SERVICES", "")
+    if notify_services_env.strip():
+        store = NotifyServiceStore()
+        existing = await store.get_services()
+        if not existing:
+            # Parse the comma-separated env var
+            services = [s.strip() for s in notify_services_env.split(",") if s.strip()]
+            if services:
+                await store.save_services(services)
+                logger.info("Migrated %d notify services from env var to DB", len(services))
 
 
 # ---------------------------------------------------------------------------

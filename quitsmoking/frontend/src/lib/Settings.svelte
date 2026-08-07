@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { getConfig, updateConfig, importEntries, importConfig } from './api.js'
+  import { getConfig, updateConfig, importEntries, importConfig, getNotifyServices, updateNotifyServices } from './api.js'
 
   let config = $state(null)
   let loading = $state(true)
@@ -28,9 +28,65 @@
   let testingNotification = $state(false)
   let notificationResult = $state(null)
 
+  // Notification services state
+  let notifyServices = $state([])
+  let newServiceInput = $state('')
+  let notifyLoading = $state(false)
+  let notifyError = $state(null)
+  let notifySuccess = $state(null)
+
   onMount(async () => {
     await fetchConfig()
+    await fetchNotifyServices()
   })
+
+  async function fetchNotifyServices() {
+    notifyLoading = true
+    notifyError = null
+    try {
+      const data = await getNotifyServices()
+      notifyServices = data.services ?? []
+    } catch (e) {
+      notifyError = e.message
+    } finally {
+      notifyLoading = false
+    }
+  }
+
+  async function addService() {
+    const svc = newServiceInput.trim()
+    if (!svc) return
+    if (notifyServices.includes(svc)) {
+      notifyError = 'Service already in list'
+      return
+    }
+    notifyError = null
+    notifySuccess = null
+    const updated = [...notifyServices, svc]
+    try {
+      await updateNotifyServices(updated)
+      notifyServices = updated
+      newServiceInput = ''
+      notifySuccess = 'Service added!'
+      setTimeout(() => { notifySuccess = null }, 3000)
+    } catch (e) {
+      notifyError = e.message
+    }
+  }
+
+  async function removeService(index) {
+    notifyError = null
+    notifySuccess = null
+    const updated = notifyServices.filter((_, i) => i !== index)
+    try {
+      await updateNotifyServices(updated)
+      notifyServices = updated
+      notifySuccess = 'Service removed!'
+      setTimeout(() => { notifySuccess = null }, 3000)
+    } catch (e) {
+      notifyError = e.message
+    }
+  }
 
   async function fetchConfig() {
     loading = true
@@ -457,8 +513,67 @@
     <div class="card">
       <h2 class="section-title">Notifications</h2>
       <p class="import-description">
+        Configure which devices receive notifications. Add your HA notify service names below.
+      </p>
+
+      {#if notifyLoading}
+        <p style="color: var(--color-secondary-text); font-size: 13px;">Loading services...</p>
+      {:else}
+        {#if notifyServices.length === 0}
+          <div class="empty-state">
+            <p>No services configured</p>
+            <p class="empty-hint">Add a notify service below (e.g. <code>notify.mobile_app_yourphone</code>). Without any configured services, notifications broadcast to all devices.</p>
+          </div>
+        {:else}
+          <ul class="service-list">
+            {#each notifyServices as service, i}
+              <li class="service-item">
+                <span class="service-name">{service}</span>
+                <button
+                  class="delete-btn"
+                  onclick={() => removeService(i)}
+                  aria-label="Remove {service}"
+                  title="Remove service"
+                >
+                  ✕
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+
+        <div class="add-service-row">
+          <input
+            type="text"
+            bind:value={newServiceInput}
+            placeholder="notify.mobile_app_yourphone"
+            class="service-input"
+            aria-label="New notification service name"
+            onkeydown={(e) => { if (e.key === 'Enter') addService() }}
+          />
+          <button
+            class="btn btn-secondary"
+            onclick={addService}
+            disabled={!newServiceInput.trim()}
+            aria-label="Add notification service"
+          >
+            ➕ Add
+          </button>
+        </div>
+
+        {#if notifyError}
+          <p class="error-text">⚠️ {notifyError}</p>
+        {/if}
+
+        {#if notifySuccess}
+          <p class="success-text fade-in">✅ {notifySuccess}</p>
+        {/if}
+      {/if}
+
+      <hr class="section-divider" />
+
+      <p class="import-description">
         Send a test notification to verify your configured devices receive it.
-        Configure which devices get notifications in the addon's Configuration tab.
       </p>
       <button
         class="btn btn-primary"
@@ -711,5 +826,89 @@
   .notification-result {
     margin-top: 12px;
     font-size: 14px;
+  }
+
+  .service-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .service-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--color-surface-elevated);
+    border-radius: var(--radius-sm);
+  }
+
+  .service-name {
+    font-size: 14px;
+    color: var(--color-text);
+    font-family: monospace;
+  }
+
+  .add-service-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .service-input {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-surface-elevated);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 14px;
+    font-family: monospace;
+  }
+
+  .service-input:focus {
+    border-color: var(--color-accent);
+    outline: none;
+  }
+
+  .service-input::placeholder {
+    color: var(--color-secondary-text);
+    opacity: 0.6;
+  }
+
+  .empty-state {
+    padding: 16px;
+    text-align: center;
+    border: 1px dashed var(--color-surface-elevated);
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+  }
+
+  .empty-state p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--color-secondary-text);
+  }
+
+  .empty-hint {
+    margin-top: 8px !important;
+    font-size: 12px !important;
+    line-height: 1.5;
+  }
+
+  .empty-hint code {
+    background: var(--color-surface-elevated);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--color-surface-elevated);
+    margin: 20px 0;
   }
 </style>

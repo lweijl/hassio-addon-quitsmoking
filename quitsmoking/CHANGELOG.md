@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.1.0
+
+### 🚀 Feature: In-App Notification Configuration
+- **Notification targets moved to app**: No longer configured in HA's addon Configuration tab. Manage notification services directly in the ⚙️ Config tab within the app.
+- **Add/remove services**: Full CRUD UI for notification targets (e.g., `notify.mobile_app_iphone`).
+- **Immediate effect**: Changes take effect instantly — no addon restart required.
+- **Auto-migration**: On first startup after upgrade, existing addon config notify_services are automatically imported into the database.
+- **Fallback**: If no services configured, notifications broadcast to all devices.
+- **Addon config emptied**: The HA addon Configuration tab no longer shows options (all config is in-app now).
+
+### 🏗️ Technical Changes
+- `NotifyServiceStore` added to persistence_db.py (uses existing config table)
+- `notifications.py` reads services from DB async (with env var fallback)
+- New API endpoints: `GET/PUT /api/config/notify-services`
+- `config.yaml` options/schema emptied
+- `run.sh` simplified (removed NOTIFY_SERVICES export)
+
 ## 2.0.3
 
 ### 🐛 Bug Fixes

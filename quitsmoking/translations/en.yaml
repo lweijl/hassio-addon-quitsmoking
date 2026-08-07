@@ -1,13 +1,1 @@
-configuration:
-  notify_service:
-    name: Notification Service (legacy)
-    description: >-
-      Single notification service for backward compatibility.
-      Prefer 'notify_services' list instead. Leave empty to use the list only.
-  notify_services:
-    name: Notification Services
-    description: >-
-      List of notification services to send alerts to (e.g.,
-      notify.mobile_app_iphone, notify.mobile_app_pixel).
-      Only the devices listed here will receive notifications.
-      Use 'notify.notify' to broadcast to all devices.
+configuration: {}

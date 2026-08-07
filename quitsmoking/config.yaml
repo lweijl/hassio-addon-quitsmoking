@@ -1,5 +1,5 @@
 name: Quit Smoking
-version: 2.0.3
+version: 2.1.0
 slug: quitsmoking
 description: Track your smoking cessation journey with interval/daily scheduling, progress stats, and notifications
 url: https://github.com/lweijl/hassio-addon-quitsmoking
@@ -20,12 +20,10 @@ map:
   - config:rw
   - addon_config:rw
 options:
-  notify_service: ""
   notify_services:
     - notify.mobile_app_phone
 schema:
-  notify_service: str?
   notify_services:
-    - str
+    - str?
 startup: application
 boot: auto

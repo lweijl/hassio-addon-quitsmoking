@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from ..engine import ScheduleConfig, ScheduleMode, TZ, WeekSchedule
 from ..models import CigaretteEntry, ConfigUpdate
-from ..state import config_store, entry_store
+from ..state import config_store, entry_store, notify_service_store
 
 router = APIRouter()
 
@@ -212,3 +212,28 @@ async def import_config(request: Request):
         "start_date": config.start_date.isoformat(),
         "weeks": len(config.weekly_schedules),
     }
+
+
+# ---------------------------------------------------------------------------
+# Notification service management
+# ---------------------------------------------------------------------------
+
+class NotifyServicesUpdate(BaseModel):
+    """Request model for updating notification services."""
+    services: list[str]
+
+
+@router.get("/api/config/notify-services")
+async def get_notify_services():
+    """Get configured notification services."""
+    services = await notify_service_store.get_services()
+    return {"services": services}
+
+
+@router.put("/api/config/notify-services")
+async def update_notify_services(body: NotifyServicesUpdate):
+    """Update notification services list."""
+    # Clean up entries
+    services = [s.strip() for s in body.services if isinstance(s, str) and s.strip()]
+    await notify_service_store.save_services(services)
+    return {"status": "ok", "services": services}

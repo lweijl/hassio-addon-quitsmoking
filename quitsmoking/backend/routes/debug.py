@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter
 
 from ..engine import ScheduleMode, TZ
-from ..notifications import send_notification, Actions, NOTIFY_SERVICES
+from ..notifications import send_notification, Actions, get_notify_services
 from ..persistence_db import DATA_DIR, DB_PATH
 from ..state import _get_engine, _now, _entries_today, config_store, entry_store
 from ..scheduler import _check_and_send_notifications, _last_notification_check
@@ -68,6 +68,7 @@ async def debug_status():
         "entries_today": len(_entries_today(entries, now)),
         "notify_services": os.environ.get("NOTIFY_SERVICES", ""),
         "notify_service_legacy": os.environ.get("NOTIFY_SERVICE", ""),
+        "notify_services_active": await get_notify_services(),
     }
 
 
@@ -189,9 +190,11 @@ async def test_notification():
         },
     }
 
+    services = await get_notify_services()
+
     return {
         "status": "ok" if result else "failed",
-        "services": NOTIFY_SERVICES,
+        "services": services,
         "uri_format": _addon_uri(""),
         "payload_sent": debug_payload,
         "sent_at": datetime.now(TZ).isoformat(),
