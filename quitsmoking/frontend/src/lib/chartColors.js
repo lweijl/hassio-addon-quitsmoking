@@ -3,9 +3,8 @@
  * Canvas can't read CSS vars at render time, so we compute them.
  */
 export function getChartColors() {
-  const style = getComputedStyle(document.documentElement)
-  const bg = style.getPropertyValue('--color-background').trim()
-  const isDark = bg === '#1C1C1E' || bg === ''
+  const theme = document.documentElement.dataset.theme
+  const isDark = theme !== 'light'
 
   return {
     regular: isDark ? 'rgba(100, 210, 255, 0.7)' : 'rgba(0, 122, 255, 0.6)',

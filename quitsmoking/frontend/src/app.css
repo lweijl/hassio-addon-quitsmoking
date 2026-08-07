@@ -284,6 +284,7 @@ button:disabled {
   letter-spacing: 0.2px;
   text-transform: uppercase;
   display: none;
+  color: inherit;
 }
 
 .tab-btn.active .tab-label {

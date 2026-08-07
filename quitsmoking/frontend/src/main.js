@@ -8,11 +8,14 @@ import { mount } from 'svelte'
   const haTheme = params.get('theme')
   if (haTheme) {
     document.documentElement.dataset.theme = haTheme
+  } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+    // Explicitly set data-theme so CSS vars update even if media query
+    // doesn't propagate into HA ingress iframe
+    document.documentElement.dataset.theme = 'light'
   }
-  // Listen for system preference changes (when no explicit override)
-  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-    if (document.documentElement.dataset.theme) return
-    // CSS @media handles it automatically, but dispatch event for chart re-render
+  // Listen for system preference changes
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+    document.documentElement.dataset.theme = e.matches ? 'light' : 'dark'
     window.dispatchEvent(new CustomEvent('themechange'))
   })
 })()
