@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.get("/api/config")
 async def get_config():
-    config = config_store.load()
+    config = await config_store.load()
     schedules = []
     for s in config.weekly_schedules:
         if s.mode == ScheduleMode.DAILY:
@@ -41,7 +41,7 @@ async def get_config():
 
 @router.put("/api/config")
 async def update_config(update: ConfigUpdate):
-    config = config_store.load()
+    config = await config_store.load()
 
     if update.start_date is not None:
         config.start_date = update.start_date
@@ -66,7 +66,7 @@ async def update_config(update: ConfigUpdate):
                 new_schedules.append(WeekSchedule.quit())
         config.weekly_schedules = new_schedules
 
-    config_store.save(config)
+    await config_store.save(config)
     return {"status": "ok"}
 
 
@@ -119,14 +119,14 @@ async def import_entries(request: Request):
         ))
 
     # Merge with existing (deduplicate by ID)
-    existing = entry_store.load()
+    existing = await entry_store.load()
     existing_ids = {str(e.id) for e in existing}
     new_entries = [e for e in imported if str(e.id) not in existing_ids]
 
     all_entries = existing + new_entries
     # Sort by timestamp
     all_entries.sort(key=lambda e: e.timestamp)
-    entry_store.save(all_entries)
+    await entry_store.save(all_entries)
 
     return {
         "status": "ok",
@@ -199,7 +199,7 @@ async def import_config(request: Request):
     else:
         raise HTTPException(status_code=400, detail="Unrecognized config format.")
 
-    config_store.save(config)
+    await config_store.save(config)
     return {
         "status": "ok",
         "start_date": config.start_date.isoformat(),

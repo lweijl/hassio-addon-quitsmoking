@@ -26,7 +26,7 @@ router = APIRouter()
 @router.post("/api/actions/log")
 async def action_log_cigarette():
     """Quick-log from notification button. Logs a regular cigarette."""
-    engine = _get_engine()
+    engine = await _get_engine()
     now = _now()
 
     entry = CigaretteEntry(
@@ -34,9 +34,9 @@ async def action_log_cigarette():
         timestamp=now,
         is_bonus=False,
     )
-    entry_store.add_entry(entry)
+    await entry_store.add_entry(entry)
 
-    entries = entry_store.load()
+    entries = await entry_store.load()
     status = _build_status(engine, entries)
 
     # Send a confirmation notification (replaces the action notification)
@@ -61,11 +61,11 @@ async def action_log_cigarette():
 @router.post("/api/actions/log_bonus")
 async def action_log_bonus():
     """Quick-log bonus from notification button."""
-    engine = _get_engine()
+    engine = await _get_engine()
     now = _now()
 
     # Check if bonus is available
-    entries = entry_store.load()
+    entries = await entry_store.load()
     week_entries = _entries_this_week(entries, engine, now)
     bonus_used = len([e for e in week_entries if e.is_bonus])
     bonus_allow = engine.bonus_allowance(now)
@@ -86,7 +86,7 @@ async def action_log_bonus():
         timestamp=now,
         is_bonus=True,
     )
-    entry_store.add_entry(entry)
+    await entry_store.add_entry(entry)
 
     remaining_bonus = bonus_allow - bonus_used - 1
     await send_notification(
@@ -104,8 +104,8 @@ async def action_log_bonus():
 @router.post("/api/actions/skip")
 async def action_skip():
     """Record a successful craving skip. Sends encouragement."""
-    engine = _get_engine()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    entries = await entry_store.load()
     now = _now()
     total_smoked = len(entries)
     avoided = engine.cigarettes_avoided(total_smoked, now)

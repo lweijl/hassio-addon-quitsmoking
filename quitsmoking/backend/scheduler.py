@@ -3,50 +3,21 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
 from .engine import ScheduleMode, TZ
 from .notifications import send_notification, Actions
+from .persistence_db import SentNotificationStore
 from .state import _get_engine, _entries_today, config_store, entry_store
 
 logger = logging.getLogger(__name__)
 
 _last_notification_check: Optional[datetime] = None
 
-# Track which notifications have been sent today/this cycle to avoid duplicates
-# Persisted to disk so restarts don't re-fire notifications
-_SENT_FILE = None  # Initialized after DATA_DIR is available
-
-
-def _get_sent_file():
-    """Get the path to the sent-notifications file."""
-    global _SENT_FILE
-    if _SENT_FILE is None:
-        from .persistence import DATA_DIR
-        _SENT_FILE = DATA_DIR / "sent_notifications.json"
-    return _SENT_FILE
-
-
-def _load_sent() -> set[str]:
-    """Load sent notifications from disk."""
-    path = _get_sent_file()
-    if not path.exists():
-        return set()
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return set(data) if isinstance(data, list) else set()
-    except (json.JSONDecodeError, ValueError):
-        return set()
-
-
-def _save_sent(sent: set[str]) -> None:
-    """Persist sent notifications to disk."""
-    path = _get_sent_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(list(sent)), encoding="utf-8")
+# Async notification dedup store (singleton)
+_sent_store = SentNotificationStore()
 
 
 def _sent_key(tag: str, now: datetime) -> str:
@@ -54,21 +25,17 @@ def _sent_key(tag: str, now: datetime) -> str:
     return f"{tag}:{now.date().isoformat()}"
 
 
-def _was_sent(tag: str, now: datetime) -> bool:
+async def _was_sent(tag: str, now: datetime) -> bool:
     """Check if this notification was already sent today."""
-    sent = _load_sent()
-    return _sent_key(tag, now) in sent
+    key = _sent_key(tag, now)
+    return await _sent_store.was_sent(key)
 
 
-def _mark_sent(tag: str, now: datetime) -> None:
-    """Mark a notification as sent for today. Persists to disk."""
-    sent = _load_sent()
-    sent.add(_sent_key(tag, now))
-    # Clean up old keys (anything not from today)
+async def _mark_sent(tag: str, now: datetime) -> None:
+    """Mark a notification as sent for today. Persists to DB."""
+    key = _sent_key(tag, now)
     today = now.date().isoformat()
-    stale = {k for k in sent if not k.endswith(today)}
-    sent.difference_update(stale)
-    _save_sent(sent)
+    await _sent_store.mark_sent(key, today)
 
 
 async def _notification_scheduler() -> None:
@@ -94,9 +61,9 @@ async def _check_and_send_notifications() -> None:
     """
     now = datetime.now(TZ)
 
-    engine = _get_engine()
-    config = config_store.load()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    config = await config_store.load()
+    entries = await entry_store.load()
     schedule = engine.current_week_schedule(now)
 
     # Smoking window = notification window
@@ -122,7 +89,7 @@ async def _check_and_send_notifications() -> None:
 
     # ─── Morning status update (at window start or 09:00, whichever is later) ───
     morning_hour = max(9, window_start_minutes // 60)
-    if now.hour >= morning_hour and not _was_sent("daily_reminder", now):
+    if now.hour >= morning_hour and not await _was_sent("daily_reminder", now):
         if schedule.mode == ScheduleMode.QUIT:
             await send_notification(
                 "🎯 Stay strong!",
@@ -186,10 +153,10 @@ async def _check_and_send_notifications() -> None:
                 actions=[Actions.open_progress(), Actions.stay_strong()],
                 tag="daily_reminder",
             )
-        _mark_sent("daily_reminder", now)
+        await _mark_sent("daily_reminder", now)
 
         # Monday weekly summary
-        if now.weekday() == 0 and not _was_sent("weekly_summary", now):
+        if now.weekday() == 0 and not await _was_sent("weekly_summary", now):
             last_week_start = engine.current_week_start(now) - timedelta(weeks=1)
             last_week_end = engine.current_week_start(now)
             last_week_entries = [
@@ -204,7 +171,7 @@ async def _check_and_send_notifications() -> None:
                 actions=[Actions.open_progress()],
                 tag="weekly_summary",
             )
-            _mark_sent("weekly_summary", now)
+            await _mark_sent("weekly_summary", now)
 
     # ─── Mode-specific notifications ───
     if schedule.mode == ScheduleMode.DAILY:
@@ -216,12 +183,12 @@ async def _check_and_send_notifications() -> None:
 
             # Skip slots already used
             if idx < smoked_today:
-                if not _was_sent(slot_key, now):
-                    _mark_sent(slot_key, now)
+                if not await _was_sent(slot_key, now):
+                    await _mark_sent(slot_key, now)
                 continue
 
             # Trigger if we've passed the slot time
-            if now >= slot_time and not _was_sent(slot_key, now):
+            if now >= slot_time and not await _was_sent(slot_key, now):
                 if remaining > 0:
                     time_str = f"{h:02d}:{m:02d}"
                     await send_notification(
@@ -236,7 +203,7 @@ async def _check_and_send_notifications() -> None:
                         ],
                         tag="smoke_time",
                     )
-                _mark_sent(slot_key, now)
+                await _mark_sent(slot_key, now)
                 break
 
     elif schedule.mode == ScheduleMode.INTERVAL:
@@ -248,7 +215,7 @@ async def _check_and_send_notifications() -> None:
             interval_key = f"interval_elapsed:{last_entry.isoformat()}"
 
             # Only notify if interval elapsed AND we're within the smoking window
-            if now >= next_allowed and not _was_sent(interval_key, now):
+            if now >= next_allowed and not await _was_sent(interval_key, now):
                 hours_since = (now - last_entry).total_seconds() / 3600
                 await send_notification(
                     "✅ Interval elapsed",
@@ -262,14 +229,14 @@ async def _check_and_send_notifications() -> None:
                     ],
                     tag="interval_elapsed",
                 )
-                _mark_sent(interval_key, now)
+                await _mark_sent(interval_key, now)
 
     # ─── Evening check-in (1 hour before window end) ───
     evening_minutes = window_end_minutes - 60  # 1h before window closes
     evening_hour = evening_minutes // 60
     evening_minute = evening_minutes % 60
 
-    if now.hour >= evening_hour and now.minute >= evening_minute and not _was_sent("evening_checkin", now):
+    if now.hour >= evening_hour and now.minute >= evening_minute and not await _was_sent("evening_checkin", now):
         if schedule.mode == ScheduleMode.QUIT:
             await send_notification(
                 "🌙 Day complete!",
@@ -356,4 +323,4 @@ async def _check_and_send_notifications() -> None:
                     actions=[Actions.open_progress()],
                     tag="evening_checkin",
                 )
-        _mark_sent("evening_checkin", now)
+        await _mark_sent("evening_checkin", now)

@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from .persistence_db import init_db, migrate_from_json
 from .scheduler import _notification_scheduler
 from .ws_listener import _ws_event_listener
 from .routes import status, history, config, catchup, health, cravings, actions, debug
@@ -24,6 +25,11 @@ _ws_listener_task: Optional[asyncio.Task] = None
 async def lifespan(app: FastAPI):
     """Start background scheduler and websocket listener on app startup."""
     global _scheduler_task, _ws_listener_task
+
+    # Initialize SQLite database and migrate any existing JSON data
+    await init_db()
+    await migrate_from_json()
+
     _scheduler_task = asyncio.create_task(_notification_scheduler())
     _ws_listener_task = asyncio.create_task(_ws_event_listener())
     yield

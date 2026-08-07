@@ -37,8 +37,8 @@ async def get_history():
 
     Returns: {"days": [{"date": "2026-06-15", "count": 8, "bonus_count": 0, "allowance": 8}, ...]}
     """
-    engine = _get_engine()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    entries = await entry_store.load()
 
     if not entries:
         return {"days": []}
@@ -54,7 +54,7 @@ async def get_history():
             daily[day_key]["bonus_count"] += 1
 
     # Build day-by-day from start to today
-    config = config_store.load()
+    config = await config_store.load()
     start = config.start_date
     today = _now().date()
     days_list = []
@@ -82,8 +82,8 @@ async def get_history():
 @router.get("/api/history/entries", response_model=list[HistoryEntry])
 async def get_history_entries():
     """Return raw entry list (for debugging/export)."""
-    engine = _get_engine()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    entries = await entry_store.load()
     result = []
     for e in entries:
         ts_aware = e.timestamp.astimezone(TZ) if e.timestamp.tzinfo else e.timestamp.replace(tzinfo=TZ)
@@ -102,9 +102,9 @@ async def get_history_entries():
 @router.get("/api/progress")
 async def get_progress():
     """Return comprehensive progress/savings data for charting."""
-    engine = _get_engine()
-    config = config_store.load()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    config = await config_store.load()
+    entries = await entry_store.load()
     now = _now()
     today = now.date()
 
@@ -266,9 +266,9 @@ async def get_progress():
 @router.get("/api/report/weekly")
 async def get_weekly_report():
     """Detailed weekly report card with insights."""
-    engine = _get_engine()
-    config = config_store.load()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    config = await config_store.load()
+    entries = await entry_store.load()
     now = _now()
 
     # Current week boundaries

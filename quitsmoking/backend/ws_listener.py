@@ -92,11 +92,11 @@ async def _ws_event_listener() -> None:
 async def _handle_notification_action(action: str) -> None:
     """Handle a notification action event."""
     if action == "QS_LOG":
-        engine = _get_engine()
+        engine = await _get_engine()
         now = _now()
         entry = CigaretteEntry(id=uuid4(), timestamp=now, is_bonus=False)
-        entry_store.add_entry(entry)
-        entries = entry_store.load()
+        await entry_store.add_entry(entry)
+        entries = await entry_store.load()
         status = _build_status(engine, entries)
         await send_notification(
             "🚬 Logged!",
@@ -106,11 +106,11 @@ async def _handle_notification_action(action: str) -> None:
         logger.info("Notification action: logged cigarette")
 
     elif action == "QS_LOG_BONUS":
-        engine = _get_engine()
+        engine = await _get_engine()
         now = _now()
         entry = CigaretteEntry(id=uuid4(), timestamp=now, is_bonus=True)
-        entry_store.add_entry(entry)
-        entries = entry_store.load()
+        await entry_store.add_entry(entry)
+        entries = await entry_store.load()
         status = _build_status(engine, entries)
         await send_notification(
             "🎁 Bonus logged!",
@@ -120,8 +120,8 @@ async def _handle_notification_action(action: str) -> None:
         logger.info("Notification action: logged bonus")
 
     elif action == "QS_SKIP":
-        engine = _get_engine()
-        entries = entry_store.load()
+        engine = await _get_engine()
+        entries = await entry_store.load()
         now = _now()
         total_smoked = len(entries)
         avoided = engine.cigarettes_avoided(total_smoked, now)

@@ -17,8 +17,8 @@ router = APIRouter()
 
 @router.get("/api/status", response_model=StatusResponse)
 async def get_status():
-    engine = _get_engine()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    entries = await entry_store.load()
     status = _build_status(engine, entries)
     return JSONResponse(
         content=status.model_dump(mode="json"),
@@ -32,7 +32,7 @@ async def get_status():
 
 @router.post("/api/log", response_model=StatusResponse)
 async def log_cigarette(req: LogRequest):
-    engine = _get_engine()
+    engine = await _get_engine()
     now = _now()
 
     # Allow logging for a past date/time
@@ -43,12 +43,12 @@ async def log_cigarette(req: LogRequest):
         timestamp=entry_time,
         is_bonus=req.is_bonus,
     )
-    entry_store.add_entry(entry)
+    await entry_store.add_entry(entry)
 
     # Re-sort entries by timestamp (in case backfilling)
-    entries = entry_store.load()
+    entries = await entry_store.load()
     entries.sort(key=lambda e: e.timestamp)
-    entry_store.save(entries)
+    await entry_store.save(entries)
 
     status = _build_status(engine, entries)
 
@@ -94,7 +94,7 @@ async def log_cigarette(req: LogRequest):
 
 @router.post("/api/undo", response_model=StatusResponse)
 async def undo_last():
-    entries = entry_store.load()
+    entries = await entry_store.load()
     if not entries:
         raise HTTPException(status_code=404, detail="No entries to undo")
 
@@ -107,7 +107,7 @@ async def undo_last():
             detail="Can only undo entries within 5 minutes",
         )
 
-    entry_store.remove_last()
-    engine = _get_engine()
-    entries = entry_store.load()
+    await entry_store.remove_last()
+    engine = await _get_engine()
+    entries = await entry_store.load()
     return _build_status(engine, entries)

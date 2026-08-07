@@ -6,15 +6,15 @@ from datetime import datetime
 
 from .engine import ScheduleEngine, ScheduleMode, TZ
 from .models import CigaretteEntry, StatusResponse
-from .persistence import ConfigStore, EntryStore
+from .persistence_db import ConfigStore, EntryStore
 
 # Stores (singleton-like)
 entry_store = EntryStore()
 config_store = ConfigStore()
 
 
-def _get_engine() -> ScheduleEngine:
-    config = config_store.load()
+async def _get_engine() -> ScheduleEngine:
+    config = await config_store.load()
     return ScheduleEngine(config)
 
 

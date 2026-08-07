@@ -29,7 +29,7 @@ HEALTH_MILESTONES = [
 @router.get("/api/health-timeline")
 async def get_health_timeline():
     """Return health recovery milestones with progress based on time since last smoke."""
-    entries = entry_store.load()
+    entries = await entry_store.load()
     now = _now()
 
     # Find the last cigarette (any, including bonus)
@@ -37,7 +37,7 @@ async def get_health_timeline():
         last_smoke = entries[-1].timestamp.astimezone(TZ)
     else:
         # No entries at all — use start date as reference
-        config = config_store.load()
+        config = await config_store.load()
         last_smoke = datetime.combine(config.start_date, datetime.min.time(), tzinfo=TZ)
 
     minutes_since_last = (now - last_smoke).total_seconds() / 60

@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from ..engine import ScheduleMode, TZ
 from ..notifications import send_notification, Actions, NOTIFY_SERVICES
+from ..persistence_db import DATA_DIR, DB_PATH
 from ..state import _get_engine, _now, _entries_today, config_store, entry_store
 from ..scheduler import _check_and_send_notifications, _last_notification_check
 
@@ -20,15 +21,12 @@ INGRESS_PATH = os.environ.get("INGRESS_PATH", "")
 @router.get("/api/health")
 async def health_check():
     """Health check and debug info."""
-    from ..persistence import DATA_DIR
     return {
         "status": "ok",
         "data_dir": str(DATA_DIR),
         "data_dir_exists": DATA_DIR.exists(),
-        "entries_file": str(entry_store.path),
-        "entries_file_exists": entry_store.path.exists(),
-        "config_file": str(config_store.path),
-        "config_file_exists": config_store.path.exists(),
+        "db_path": str(DB_PATH),
+        "db_exists": DB_PATH.exists(),
         "ingress_path": INGRESS_PATH,
         "cwd": os.getcwd(),
     }
@@ -37,9 +35,9 @@ async def health_check():
 @router.get("/api/debug")
 async def debug_status():
     """Raw computed values for troubleshooting."""
-    engine = _get_engine()
-    config = config_store.load()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    config = await config_store.load()
+    entries = await entry_store.load()
     now = _now()
     schedule = engine.current_week_schedule(now)
 
@@ -84,8 +82,8 @@ async def trigger_notification_check():
 async def get_pending_notifications():
     """Return what notifications would be sent right now (dry-run)."""
     now = datetime.now(TZ)
-    engine = _get_engine()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    entries = await entry_store.load()
     schedule = engine.current_week_schedule(now)
 
     pending = []

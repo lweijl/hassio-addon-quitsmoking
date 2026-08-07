@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta
 from typing import Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..engine import TZ
+from ..persistence_db import CravingRecord, CravingStore
 from ..state import _now
 
 router = APIRouter()
@@ -36,42 +36,6 @@ class CravingEntry(BaseModel):
     resisted: bool = True
 
 
-class CravingRecord(BaseModel):
-    id: UUID
-    timestamp: datetime
-    trigger: str
-    intensity: int
-    notes: Optional[str]
-    resisted: bool
-
-
-class CravingStore:
-    """Persist craving journal entries."""
-
-    def __init__(self) -> None:
-        from ..persistence import DATA_DIR, _atomic_write
-        self.path = DATA_DIR / "cravings.json"
-        self._atomic_write = _atomic_write
-
-    def load(self) -> list[CravingRecord]:
-        if not self.path.exists():
-            return []
-        try:
-            raw = json.loads(self.path.read_text(encoding="utf-8"))
-            return [CravingRecord(**r) for r in raw]
-        except (json.JSONDecodeError, KeyError, ValueError):
-            return []
-
-    def save(self, records: list[CravingRecord]) -> None:
-        data = [r.model_dump(mode="json") for r in records]
-        self._atomic_write(self.path, json.dumps(data, indent=2, default=str))
-
-    def add(self, record: CravingRecord) -> None:
-        records = self.load()
-        records.append(record)
-        self.save(records)
-
-
 craving_store = CravingStore()
 
 
@@ -91,7 +55,7 @@ async def log_craving(entry: CravingEntry):
         notes=entry.notes,
         resisted=entry.resisted,
     )
-    craving_store.add(record)
+    await craving_store.add(record)
 
     return {"status": "ok", "id": str(record.id), "timestamp": record.timestamp.isoformat()}
 
@@ -99,14 +63,14 @@ async def log_craving(entry: CravingEntry):
 @router.get("/api/cravings")
 async def get_cravings():
     """Return all craving entries."""
-    records = craving_store.load()
-    return {"cravings": [r.model_dump(mode="json") for r in records]}
+    records = await craving_store.load()
+    return {"cravings": [r.model_dump() for r in records]}
 
 
 @router.get("/api/cravings/patterns")
 async def get_craving_patterns():
     """Analyze craving patterns: by trigger, by hour, by day of week, intensity trends."""
-    records = craving_store.load()
+    records = await craving_store.load()
     now = _now()
 
     if not records:

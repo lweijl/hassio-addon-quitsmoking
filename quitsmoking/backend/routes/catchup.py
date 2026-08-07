@@ -29,9 +29,9 @@ class BackfillRequest(BaseModel):
 @router.get("/api/catchup")
 async def get_catchup():
     """Find missed days and partially-logged yesterday."""
-    engine = _get_engine()
-    config = config_store.load()
-    entries = entry_store.load()
+    engine = await _get_engine()
+    config = await config_store.load()
+    entries = await entry_store.load()
     now = _now()
     yesterday = now.date() - timedelta(days=1)
 
@@ -77,8 +77,8 @@ async def get_catchup():
 @router.post("/api/catchup/backfill")
 async def backfill_days(req: BackfillRequest):
     """Backfill entries for missed days with evenly-spaced timestamps."""
-    config = config_store.load()
-    entries = entry_store.load()
+    config = await config_store.load()
+    entries = await entry_store.load()
 
     window_start_minutes = config.smoking_window_start_minutes
     window_end_minutes = config.smoking_window_end_minutes
@@ -117,7 +117,7 @@ async def backfill_days(req: BackfillRequest):
 
     # Sort by timestamp and save
     entries.sort(key=lambda e: e.timestamp)
-    entry_store.save(entries)
+    await entry_store.save(entries)
 
     return {
         "status": "ok",
