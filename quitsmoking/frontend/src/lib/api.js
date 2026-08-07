@@ -177,3 +177,21 @@ export function getCravingTriggers() {
 export function getWeeklyReport() {
   return request('/report/weekly')
 }
+
+/**
+ * Get configured notification services
+ */
+export function getNotifyServices() {
+  return request('/config/notify-services')
+}
+
+/**
+ * Update notification services list
+ * @param {string[]} services - Array of service names (e.g., ['notify.mobile_app_phone'])
+ */
+export function updateNotifyServices(services) {
+  return request('/config/notify-services', {
+    method: 'PUT',
+    body: JSON.stringify({ services })
+  })
+}

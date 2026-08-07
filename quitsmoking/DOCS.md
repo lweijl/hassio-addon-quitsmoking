@@ -18,15 +18,18 @@
 
 ## Configuration
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `notify_service` | `notify.notify` | The Home Assistant notification service to use for reminders and milestone alerts |
+This add-on requires no configuration in the HA addon panel. All settings — including notification targets — are managed within the app's **Settings (⚙️)** tab.
 
-### Example configuration
+### Notification Targets
 
-```yaml
-notify_service: notify.mobile_app_my_phone
-```
+To receive notifications on your phone or other devices:
+
+1. Open the add-on via the sidebar panel
+2. Navigate to the **⚙️ Settings** tab
+3. Under **Notifications**, add your Home Assistant notify service names (e.g., `notify.mobile_app_yourphone`)
+4. Use the **🔔 Send Test Notification** button to verify delivery
+
+If no services are configured, notifications broadcast to all devices via the default `notify.notify` service.
 
 ## Usage
 
@@ -36,8 +39,8 @@ Once installed and started, access the add-on via the **Quit Smoking** panel in 
 
 - **Schedule Tracking** — Configure your tapering schedule (interval-based or daily limits) and track each cigarette logged against your plan.
 - **Progress Dashboard** — View daily, weekly, and overall statistics including cigarettes avoided, money saved, and health milestones.
-- **Notifications** — Receive alerts when you're approaching your daily limit, milestone celebrations, and motivational reminders via your configured notification service.
-- **Data Persistence** — All data is stored in `/config/quitsmoking/` and persists across add-on restarts and updates.
+- **Notifications** — Receive alerts when your interval elapses, daily reminders, milestone celebrations, and weekly progress summaries.
+- **Data Persistence** — All data is stored in a SQLite database at `/config/quitsmoking/` and persists across add-on restarts and updates.
 
 ### Ingress
 
@@ -53,8 +56,8 @@ Data is stored at `/config/quitsmoking/` inside the Home Assistant config direct
 
 ## Troubleshooting
 
-- **Add-on won't start:** Check the add-on logs for error messages. Ensure the notify service name is valid.
-- **Notifications not working:** Verify the `notify_service` option matches an existing notification service in your HA instance (check **Developer Tools → Services**).
+- **Add-on won't start:** Check the add-on logs for error messages.
+- **Notifications not working:** Open the ⚙️ Settings tab and verify your notify services are listed. Use the test button to confirm. Check that the service names match those in **Developer Tools → Services** (e.g., `notify.mobile_app_yourphone`).
 - **Data loss after update:** Data is stored in the config directory and should persist. If you experience issues, check that the `/config/quitsmoking/` directory exists and has proper permissions.
 
 ## Support

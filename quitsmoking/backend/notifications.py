@@ -5,9 +5,8 @@ Supports actionable notifications with buttons that can:
 - Trigger API endpoints (URI action to ingress path)
 - Fire HA events (standard action key)
 
-Notification targets are configurable:
-- NOTIFY_SERVICES: comma-separated list of services (e.g., "mobile_app_iphone,mobile_app_pixel")
-- NOTIFY_SERVICE: single legacy service (fallback if NOTIFY_SERVICES is empty)
+Notification targets are configurable via in-app settings (stored in SQLite DB).
+Falls back to NOTIFY_SERVICES/NOTIFY_SERVICE env vars for backward compatibility.
 """
 
 from __future__ import annotations
@@ -24,36 +23,25 @@ SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 SUPERVISOR_API = "http://supervisor/core/api"
 INGRESS_PATH = os.environ.get("INGRESS_PATH", "")
 
-# Build the list of notify services to target
-_NOTIFY_SERVICES_RAW = os.environ.get("NOTIFY_SERVICES", "")
-_NOTIFY_SERVICE_RAW = os.environ.get("NOTIFY_SERVICE", "")
 
+async def get_notify_services() -> list[str]:
+    """Get notification services — reads from DB, falls back to env var."""
+    from .state import notify_service_store
 
-def _parse_notify_services() -> list[str]:
-    """Parse configured notify services into a list of service names (without 'notify.' prefix)."""
-    services: list[str] = []
+    services = await notify_service_store.get_services()
+    if services:
+        return [s.removeprefix("notify.") for s in services]
 
-    # Primary: list from NOTIFY_SERVICES (comma-separated)
-    if _NOTIFY_SERVICES_RAW.strip():
-        for svc in _NOTIFY_SERVICES_RAW.split(","):
-            svc = svc.strip().removeprefix("notify.")
-            if svc:
-                services.append(svc)
+    # Fallback to env var (backward compat during transition)
+    raw = os.environ.get("NOTIFY_SERVICES", "")
+    if raw.strip():
+        return [s.strip().removeprefix("notify.") for s in raw.split(",") if s.strip()]
 
-    # Fallback: single legacy NOTIFY_SERVICE
-    if not services and _NOTIFY_SERVICE_RAW.strip():
-        svc = _NOTIFY_SERVICE_RAW.strip().removeprefix("notify.")
-        if svc:
-            services.append(svc)
+    raw_single = os.environ.get("NOTIFY_SERVICE", "")
+    if raw_single.strip():
+        return [raw_single.strip().removeprefix("notify.")]
 
-    # Ultimate fallback: broadcast to all
-    if not services:
-        services.append("notify")
-
-    return services
-
-
-NOTIFY_SERVICES = _parse_notify_services()
+    return ["notify"]  # broadcast fallback
 
 
 def _addon_uri(path: str = "") -> str:
@@ -184,7 +172,8 @@ async def send_notification(
 
     try:
         async with aiohttp.ClientSession() as session:
-            for service in NOTIFY_SERVICES:
+            services = await get_notify_services()
+            for service in services:
                 url = f"{SUPERVISOR_API}/services/notify/{service}"
                 try:
                     async with session.post(

@@ -6,11 +6,12 @@ from datetime import datetime
 
 from .engine import ScheduleEngine, ScheduleMode, TZ
 from .models import CigaretteEntry, StatusResponse
-from .persistence_db import ConfigStore, EntryStore
+from .persistence_db import ConfigStore, EntryStore, NotifyServiceStore
 
 # Stores (singleton-like)
 entry_store = EntryStore()
 config_store = ConfigStore()
+notify_service_store = NotifyServiceStore()
 
 
 async def _get_engine() -> ScheduleEngine:
