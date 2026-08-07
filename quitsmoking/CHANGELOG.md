@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.0.1
+
+### 🐛 Bug Fixes
+- **Remove Docker HEALTHCHECK**: Conflicted with HA Supervisor startup detection, causing addon to stay in "starting" state indefinitely.
+- **Light theme detection in HA ingress iframe**: `prefers-color-scheme` media query doesn't propagate into HA's ingress iframe. Now explicitly sets `data-theme="light"` via JS on load when system prefers light mode.
+- **Chart color detection**: Uses `data-theme` attribute instead of computed CSS style parsing (more reliable in iframe context).
+
+### 🎨 UX Improvements
+- **Tab navigation labels**: Text sublabels below emoji icons (active tab on mobile, all tabs on ≥480px).
+- **Enriched quit-mode dashboard**: Streak counter, inline health milestones, cumulative savings card.
+- **Over-limit interstitial**: When daily limit reached, prompts to log a craving instead before allowing over-limit log.
+- **Dashboard cleanup**: Removed redundant dots, moved motivational quote inline, collapsed past-log trigger.
+- **Stat label clarity**: "Tapering" during taper, "Smoke-free" in quit mode.
+- **History chart**: Y-axis label + subtitle for weekly aggregation ("All" view).
+- **Progress charts**: Hover radius for data point inspection.
+
+### 🌗 Light/Dark Theme System
+- **Automatic theme switching**: Detects system preference and applies light or dark theme.
+- **HA theme override**: Supports `?theme=light` / `?theme=dark` URL param.
+- **Light palette**: Apple HIG-inspired (#F2F2F7 background, #007AFF accent, white cards).
+- **CSS variable migration**: All hardcoded rgba() replaced with `--color-*-subtle` tokens.
+- **Chart adaptation**: Charts re-render with theme-appropriate colors on switch.
+- **Smooth transitions**: 0.3s ease on background/color/shadow changes.
+- **Styled file inputs**: Native file inputs replaced with themed button labels.
+
 ## 2.0.0
 
 ### 🚀 Major: SQLite Migration
