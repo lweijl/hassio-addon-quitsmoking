@@ -331,6 +331,37 @@
   .intensity-slider {
     width: 100%;
     margin: 8px 0;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--color-surface-elevated);
+    outline: none;
+  }
+
+  .intensity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    cursor: pointer;
+  }
+
+  .intensity-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    border: none;
+    cursor: pointer;
+  }
+
+  .intensity-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--color-surface-elevated);
   }
 
   .intensity-labels {

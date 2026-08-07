@@ -91,7 +91,7 @@
 
 <div class="container">
   <header class="app-header">
-    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">2.0.1</span></h1>
+    <h1 class="app-title">🚭 QuitSmoking <span class="app-version">2.0.2</span></h1>
   </header>
 
   <nav class="tab-nav" role="tablist" aria-label="Main navigation">
@@ -126,7 +126,7 @@
       aria-label="Craving Journal"
     >
       <span class="tab-icon">📓</span>
-      <span class="tab-label">Cravings</span>
+      <span class="tab-label">Log</span>
     </button>
     <button
       class="tab-btn"
@@ -159,7 +159,7 @@
       aria-label="Progress"
     >
       <span class="tab-icon">🏆</span>
-      <span class="tab-label">Progress</span>
+      <span class="tab-label">Goals</span>
     </button>
     <button
       class="tab-btn"
@@ -170,7 +170,7 @@
       aria-label="Settings"
     >
       <span class="tab-icon">⚙️</span>
-      <span class="tab-label">Settings</span>
+      <span class="tab-label">Config</span>
     </button>
   </nav>
 

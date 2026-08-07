@@ -788,8 +788,8 @@
 
   /* Dark-theme optimized animation colors */
   @keyframes pulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(100, 210, 255, 0.4); }
-    50% { transform: scale(1.15); box-shadow: 0 0 10px 4px rgba(100, 210, 255, 0.2); }
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 var(--color-accent-glow); }
+    50% { transform: scale(1.15); box-shadow: 0 0 10px 4px var(--color-accent-glow-soft); }
   }
 
   /* Past log section */

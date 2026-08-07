@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.2
+
+### 🐛 Bug Fixes
+- **Light theme not applying in HA ingress iframe**: `prefers-color-scheme` media query doesn't reflect HA's theme setting. Now reads theme directly from `window.parent.document` (HA's `hass.themes.darkMode`), with fallbacks to computed background color and system preference.
+- **Native controls dark in light mode**: `<meta name="color-scheme" content="dark">` forced inputs, sliders, and scrollbars into dark rendering. Changed to `dark light` and dynamically updated on theme switch.
+- **Intensity slider unstyled**: Custom appearance with theme-aware track (`--color-surface-elevated`) and thumb (`--color-accent`).
+- **Pulse animation glow wrong color in light mode**: Replaced hardcoded cyan rgba with `--color-accent-glow` CSS variable.
+
+### 🎨 UI Tweaks
+- **Tab labels always visible**: Removed mobile-only hide — 9px labels fit on all screen sizes.
+- **Shortened long tab labels**: "Cravings" → "Log", "Progress" → "Goals", "Settings" → "Config".
+- **Live theme switching**: MutationObserver on HA parent document detects theme changes without page reload.
+
 ## 2.0.1
 
 ### 🐛 Bug Fixes
