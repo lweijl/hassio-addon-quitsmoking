@@ -204,7 +204,6 @@ async def _check_and_send_notifications() -> None:
                         tag="smoke_time",
                     )
                 await _mark_sent(slot_key, now)
-                break
 
     elif schedule.mode == ScheduleMode.INTERVAL:
         if non_bonus:

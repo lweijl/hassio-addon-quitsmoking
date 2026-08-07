@@ -108,7 +108,6 @@
     scheduleSuccess = null
     try {
       await updateConfig({
-        ...config,
         bonus_per_week: bonusPerWeek,
         cost_per_cigarette: costPerCigarette,
         baseline_daily_count: baseline,

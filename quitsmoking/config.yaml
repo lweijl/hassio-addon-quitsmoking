@@ -9,6 +9,7 @@ arch:
   - armv7
 init: false
 homeassistant_api: true
+hassio_api: true
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:lungs

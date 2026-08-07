@@ -22,6 +22,9 @@
       updateCountdown()
       if (tickInterval) clearInterval(tickInterval)
       tickInterval = setInterval(updateCountdown, 1000)
+      return () => {
+        if (tickInterval) clearInterval(tickInterval)
+      }
     }
   })
 
