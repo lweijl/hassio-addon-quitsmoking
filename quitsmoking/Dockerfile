@@ -37,7 +37,4 @@ COPY --from=frontend-builder /build/frontend/dist /app/frontend/dist
 COPY run.sh /
 RUN chmod +x /run.sh
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -q --spider http://localhost:8099/api/health || exit 1
-
 CMD ["/run.sh"]
